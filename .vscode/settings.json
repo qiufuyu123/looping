@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "lpmem.h": "c",
+        "lptypes.h": "c",
+        "lpvm.h": "c",
+        "lperr.h": "c"
+    }
+}
