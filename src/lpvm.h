@@ -15,10 +15,8 @@ typedef enum
     LOP_NOP,
     LOP_LOADc,
     LOP_LOADcn,
-    LOP_SLOAD,
-    LOP_LOAD,
+    LOP_LOADst, // load a const to static
     LOP_LEA,
-    LOP_SPOP,
     LOP_POP,
     LOP_SMOV,
     LOP_MOV,
@@ -54,7 +52,7 @@ typedef enum
 typedef struct 
 {
     char *stacks;
-    char *stack_ends;
+    lpptrsize stack_ends;
     lpptrsize esp;
     lpptrsize ebp;
 }lp_stack_ctx;
@@ -66,6 +64,12 @@ typedef struct
     lpsize code_size;
     char* pc;
 }lp_opcodes_ctx;
+
+typedef struct 
+{
+    char *static_data;
+    lpptrsize size;
+}lp_staticres_ctx;
 
 typedef enum
 {
@@ -79,10 +83,26 @@ typedef struct
     lp_stack_ctx stack;
     lp_opcodes_ctx opcodes;
     lpvmflg vm_flg;
+    lp_staticres_ctx sres;
 }lp_vm_ctx;
 
+// #define LP_BIN_MAGIC0 0xfa
+// #define LP_BIN_MAGIC1 0x99
+// #define LP_BIN_MAGIC2 0xdf
+// typedef struct
+// {
+//     char magic[3]; // fa 99 df
 
-void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size, char *stack, lpsize stack_size,char *codes, lpsize code_size);
+// }lp_bin_header;
+
+
+void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size, char *stack,
+                lpsize stack_size,char *codes, lpsize code_size, 
+                char *staticres, lpsize ressize);
+
+LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint);
+
+void lp_vm_staticres_init(lp_staticres_ctx *ctx, char *data, lpsize ressize);
 
 void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size);
 
@@ -92,10 +112,13 @@ void lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size);
 void *lp_vm_popc(lp_vm_ctx *ctx, lpptrsize size);
 #define lp_vm_pop(ctx,type) (*(type*)(lp_vm_popc(ctx,sizeof(type))))
 
+lpvmvalue *lp_vm_stackvisit(lp_vm_ctx *ctx, lpvmvalue offset, lpbool is_ebp_based);
+
 void lp_vm_code_init(lp_opcodes_ctx *ctx, char *codes, lpptrsize size);
 
 char lp_vm_nextop(lp_vm_ctx *ctx);
 
 lpvmptr lp_vm_nextop_ptr(lp_vm_ctx *ctx);
 
+lpvmvalue lp_vm_nextop_value(lp_vm_ctx *ctx);
 #endif

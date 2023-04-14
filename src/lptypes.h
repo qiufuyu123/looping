@@ -12,7 +12,9 @@ typedef enum
 {
     LP_OK = 0,
     LP_NULL = -1,
-    LP_OOM = -2
+    LP_OOM = -2,
+    LP_STACK_OVER_FLOW = -3,
+    LP_STACK_UNDER_FLOW = -4
 }LP_Err;
 #define LP_ERR_MAX 3
 #define lpprintf printf
@@ -31,6 +33,9 @@ typedef enum
 #if __SIZEOF_POINTER__==8
 #define lpsize uint64_t
 typedef uint64_t lpvmptr;
+typedef uint32_t lpvmvalue;
+typedef uint8_t lpopcode;
+typedef uint8_t lpbool;
 #else
 #define lpsize uint32_t
 typedef uint32_t lpvmptr;

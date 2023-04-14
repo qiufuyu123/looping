@@ -3,6 +3,7 @@
         "lpmem.h": "c",
         "lptypes.h": "c",
         "lpvm.h": "c",
-        "lperr.h": "c"
+        "lperr.h": "c",
+        "type_traits": "c"
     }
 }
