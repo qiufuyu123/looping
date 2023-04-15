@@ -32,17 +32,18 @@ typedef enum
 
 #if __SIZEOF_POINTER__==8
 #define lpsize uint64_t
-typedef uint64_t lpvmptr;
-typedef uint32_t lpvmvalue;
-typedef uint8_t lpopcode;
-typedef uint8_t lpbool;
+
 #else
 #define lpsize uint32_t
-typedef uint32_t lpvmptr;
+
 #endif
 
 #define lpptrsize lpsize
 
+typedef lpptrsize lpvmptr;
+typedef uint32_t lpvmvalue;
+typedef uint8_t lpopcode;
+typedef uint8_t lpbool;
 #define lp2ptr(x) ((lpptrsize)(x))
 
 typedef uint16_t lpvmflg;

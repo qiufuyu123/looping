@@ -5,12 +5,15 @@ typedef enum
 {
     // 0000_0000b
     LOP_ERR,
+    LOP_TPOPS,      // pop v1, pop v2, push v1 + v2
     LOP_TCONST,     // const const
-    LOP_TCONSTSTACK, // const stack
+    LOP_TCONSTSTACK, // stack const
     LOP_TSTACK,     // stack stack
-    LOP_TADDR,      // addr(const)
     LOP_TSTACKDST,   // stack stack dst
     LOP_TCONSTSTACKDST, // const stack dst
+    LOP_TADDRCONST, // addr(const) <- const
+    LOP_TADDRSTACK, // addr -> stack
+    LOP_TSTACK2ADDR, // addr <- stack
     LOP_TNR,
     LOP_NOP,
     LOP_LOADc,
@@ -30,7 +33,14 @@ typedef enum
     LOP_OR,
     LOP_AND,
     LOP_NOT,
-    LOP_EQ
+    LOP_EQ,
+    LOP_LG_OR,
+    LOP_LG_AND,
+    LOP_LG_NOTEQ,
+    LOP_GRT,
+    LOP_LESS,
+    LOP_GRT_EQ,
+    LOP_LESS_EQ
 }LP_Vm_Opcodes;
 /**
  * In Looping virtual machine, we only support 2 types of instructions

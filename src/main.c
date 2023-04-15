@@ -18,6 +18,11 @@ int main()
     *(uint32_t*)(&buf_codes[14])=456;
     buf_codes[18] = LOP_POP;
     *(uint32_t*)(&buf_codes[19])=0;
-    buf_codes[23]=0;
+    buf_codes[23]=LOP_EQ;
+    buf_codes[24]=LOP_TCONST;
+    *(uint32_t*)(&buf_codes[25])=1;
+    *(uint32_t*)(&buf_codes[29])=1;
+    //*(uint32_t*)(&buf_codes[33])=1;
+    buf_codes[30]=0;
     lp_vm_start(&ctx,0);
 }
