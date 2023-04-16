@@ -11,6 +11,19 @@ void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size)
     lpdebug("Stack: esp:%x size:%d end:%x\n",ctx->esp,size,ctx->stack_ends);
 }
 
+lpvmbyte* lp_vm_stack_lea(lp_vm_ctx *ctx, lpsize sz)
+{
+    lpnull(ctx);
+    if(ctx->stack.esp + sz >= ctx->stack.stack_ends)
+    {
+        lpprintf(LPDERRO "Fail to alloc data in stack!;\n");
+        lppanic(LP_OOM);
+    }
+    lpvmbyte *r = ctx->stack.esp;
+    ctx->stack.esp += sz;
+    return r;
+}
+
 void lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size)
 {
     lpnull(ctx && ptr && size);
@@ -89,4 +102,5 @@ void lp_vm_staticres_init(lp_staticres_ctx *ctx, char *data, lpsize ressize)
     lpnull(ctx && data && ressize);
     ctx->static_data = data;
     ctx->size = ressize;
+    ctx->end = ctx->static_data + ctx->size;
 }

@@ -11,6 +11,7 @@ typedef struct
 {
     size_t memsz;
     li_mem_block_hearder *mem_header;
+    char *mem_end;
 }li_ctx_t;
 void li_setup_mem(li_ctx_t *ctx, size_t buf_size, pointer_t buf);
 pointer_t li_malloc(li_ctx_t *ctx,size_t size);

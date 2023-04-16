@@ -9,7 +9,8 @@ void li_setup_mem(li_ctx_t *ctx, size_t buf_size, pointer_t buf)
     ctx->memsz=buf_size;
     ctx->mem_header->prev=(char*)buf;
     ctx->mem_header->next=(char*)buf+buf_size;
-}
+    ctx->mem_end = ctx->mem_header + buf_size;
+}   
 
 static li_mem_block_hearder* li_split(li_mem_block_hearder *header,size_t sz)
 {

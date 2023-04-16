@@ -1,6 +1,13 @@
 #ifndef _H_LPVM
 #define _H_LPVM
 #include"lpmem.h"
+
+typedef enum
+{
+    LOP_MVTCONST = 0,
+    LOP_MVTSTACK = 1,
+    LOP_MVTADDR = 2,
+}LP_Vm_Movtag;
 typedef enum
 {
     // 0000_0000b
@@ -11,9 +18,6 @@ typedef enum
     LOP_TSTACK,     // stack stack
     LOP_TSTACKDST,   // stack stack dst
     LOP_TCONSTSTACKDST, // const stack dst
-    LOP_TADDRCONST, // addr(const) <- const
-    LOP_TADDRSTACK, // addr -> stack
-    LOP_TSTACK2ADDR, // addr <- stack
     LOP_TNR,
     LOP_NOP,
     LOP_LOADc,
@@ -21,10 +25,7 @@ typedef enum
     LOP_LOADst, // load a const to static
     LOP_LEA,
     LOP_POP,
-    LOP_SMOV,
     LOP_MOV,
-    LOP_SMOVc,
-    LOP_MOVc,
     LOP_ADD,
     LOP_MINUS,
     LOP_MUL,
@@ -79,6 +80,7 @@ typedef struct
 {
     char *static_data;
     lpptrsize size;
+    lpptrsize end;
 }lp_staticres_ctx;
 
 typedef enum
@@ -86,6 +88,13 @@ typedef enum
     LVM_NORMAL = 1,
     LVM_ENCRY_ADDR = 2
 }LP_Vm_Flg;
+
+typedef struct 
+{
+    lpsize capacity;
+    lpsize top;
+    char *data;
+}lp_vm_array;
 
 typedef struct 
 {
@@ -115,6 +124,8 @@ LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint);
 void lp_vm_staticres_init(lp_staticres_ctx *ctx, char *data, lpsize ressize);
 
 void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size);
+
+lpvmbyte* lp_vm_stack_lea(lp_vm_ctx *ctx, lpsize sz);
 
 void lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size);
 #define lp_vm_push(ctx,type,v) lp_vm_pushc(ctx,&v,sizeof(type))

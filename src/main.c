@@ -23,6 +23,10 @@ int main()
     *(uint32_t*)(&buf_codes[25])=1;
     *(uint32_t*)(&buf_codes[29])=1;
     //*(uint32_t*)(&buf_codes[33])=1;
-    buf_codes[30]=0;
+    buf_codes[33]=LOP_MOV;
+    buf_codes[34]=LOP_MVTCONST|(LOP_MVTSTACK<<4);
+    *(uint32_t*)(&buf_codes[35])=0;
+    *(uint32_t*)(&buf_codes[39])=666;
+    *(uint32_t*)(&buf_codes[43])=0;
     lp_vm_start(&ctx,0);
 }

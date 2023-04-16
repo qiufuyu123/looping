@@ -14,11 +14,14 @@ typedef enum
     LP_NULL = -1,
     LP_OOM = -2,
     LP_STACK_OVER_FLOW = -3,
-    LP_STACK_UNDER_FLOW = -4
+    LP_STACK_UNDER_FLOW = -4,
+    LP_ILLEGAL_POINTER = -5,
+    LP_BAD_INSTR_FORMAT =-6
 }LP_Err;
 #define LP_ERR_MAX 3
 #define lpprintf printf
 #define LPDINFO "[INFO]"
+#define LPDERRO "[ERRO]"
 #define LPEOL ".\n"
 
 #ifdef _LP_DEBUG
@@ -42,6 +45,7 @@ typedef enum
 
 typedef lpptrsize lpvmptr;
 typedef uint32_t lpvmvalue;
+typedef uint8_t lpvmbyte;
 typedef uint8_t lpopcode;
 typedef uint8_t lpbool;
 #define lp2ptr(x) ((lpptrsize)(x))
