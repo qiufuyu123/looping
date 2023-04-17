@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<malloc.h>
 #include"lpvm.h"
+#include"lpcompiler.h"
 int main()
 {
     lp_vm_ctx ctx;
@@ -29,4 +30,7 @@ int main()
     *(uint32_t*)(&buf_codes[39])=666;
     *(uint32_t*)(&buf_codes[43])=0;
     lp_vm_start(&ctx,0);
+    lp_compiler comp;
+    lp_compiler_init(&comp,&ctx,"if(a==233){",12);
+    lp_compiler_do(&comp);
 }

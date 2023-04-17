@@ -66,6 +66,7 @@ typedef struct
     lpptrsize stack_ends;
     lpptrsize esp;
     lpptrsize ebp;
+    lpbool increable;
 }lp_stack_ctx;
 
 typedef struct 
@@ -93,8 +94,16 @@ typedef struct
 {
     lpsize capacity;
     lpsize top;
-    char *data;
+    lpsize bottom;
+    lpsize unit;
+    lpptrsize *data;
 }lp_vm_array;
+
+typedef struct 
+{
+    lpvmvalue vret;
+    lpvmvalue vvmflg;
+}lp_vm_regs;
 
 typedef struct 
 {
@@ -103,6 +112,7 @@ typedef struct
     lp_opcodes_ctx opcodes;
     lpvmflg vm_flg;
     lp_staticres_ctx sres;
+    lp_vm_regs regs;
 }lp_vm_ctx;
 
 // #define LP_BIN_MAGIC0 0xfa
@@ -113,7 +123,20 @@ typedef struct
 //     char magic[3]; // fa 99 df
 
 // }lp_bin_header;
+#define lp_ptr2val(x,type) *(type*)(x)
+void lp_array_init(lp_vm_array *ctx, lpsize sz, lpsize unit_sz);
 
+void lp_array_push(lp_vm_array *ctx, char *data);
+#define lp_array_pushv(ctx,v) lp_array_push(ctx, &v)
+
+void* lp_array_get(lp_vm_array *ctx, lpsize idx);
+#define lp_array_getv(ctx,idx,type) *(type*)(lp_array_get(ctx,idx))
+
+void* lp_array_bottom(lp_vm_array *ctx);
+
+void* lp_array_remove(lp_vm_array *ctx, lpsize idx);
+
+void lp_array_clean(lp_vm_array *ctx);
 
 void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size, char *stack,
                 lpsize stack_size,char *codes, lpsize code_size, 

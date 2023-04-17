@@ -16,7 +16,9 @@ typedef enum
     LP_STACK_OVER_FLOW = -3,
     LP_STACK_UNDER_FLOW = -4,
     LP_ILLEGAL_POINTER = -5,
-    LP_BAD_INSTR_FORMAT =-6
+    LP_BAD_INSTR_FORMAT =-6,
+    LP_OUT_OF_RANGE = -7,
+    LP_LEXER_ERR = -8
 }LP_Err;
 #define LP_ERR_MAX 3
 #define lpprintf printf
@@ -49,6 +51,10 @@ typedef uint8_t lpvmbyte;
 typedef uint8_t lpopcode;
 typedef uint8_t lpbool;
 #define lp2ptr(x) ((lpptrsize)(x))
+
+#define lpmalloc malloc
+#define lpfree free
+#define lprealloc realloc
 
 typedef uint16_t lpvmflg;
 

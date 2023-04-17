@@ -1,10 +1,18 @@
 #include"lpvm.h"
 #include"lperr.h"
 #include<string.h>
-
+#include<malloc.h>
 void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size)
 {
-    lpnull(ctx && stacks && size);
+    lpnull(ctx);
+    ctx->increable = 0;
+    if(stacks == -1)
+    {
+        stacks = lpmalloc(1024);
+        size = 1024;
+        ctx->increable = 1;
+    }
+    lpnull(stacks && size);
     ctx->ebp=ctx->esp = lp2ptr(stacks);
     ctx->stacks = stacks;
     ctx->stack_ends = ctx->esp + size;
@@ -103,4 +111,61 @@ void lp_vm_staticres_init(lp_staticres_ctx *ctx, char *data, lpsize ressize)
     ctx->static_data = data;
     ctx->size = ressize;
     ctx->end = ctx->static_data + ctx->size;
+}
+
+void lp_array_init(lp_vm_array *ctx, lpsize sz, lpsize unit_sz)
+{
+    lpnull(ctx && sz && unit_sz);
+    ctx->unit = unit_sz;
+    ctx->capacity = sz;
+    ctx->data = lpmalloc(sz*sizeof(lpptrsize));
+    lpnull(ctx->data);
+    ctx->top=0;
+    ctx->bottom=0;
+    return LP_OK;
+}
+
+void lp_array_push(lp_vm_array *ctx, char *data)
+{
+    lpnull(ctx && data);
+    if(ctx->top >= ctx->capacity)
+    {
+        ctx->capacity += ctx->unit;
+        void *n = lprealloc(ctx->data,ctx->capacity*sizeof(lpptrsize));
+        lpnull(n);
+        ctx->data = n;
+    }
+    ctx->data[ctx->top] = (lpptrsize)data;
+    ctx->top++;
+}
+
+void *lp_array_get(lp_vm_array *ctx, lpsize idx)
+{
+    lpnull(ctx);
+    if(idx >= ctx->capacity)
+        lppanic(LP_OUT_OF_RANGE);
+    return ctx->data[idx];
+}
+
+void *lp_array_bottom(lp_vm_array *ctx)
+{
+    void *r = ctx->data[ctx->bottom];
+    ctx->bottom++;
+    return r;
+}
+
+void *lp_array_remove(lp_vm_array *ctx, lpsize idx)
+{
+    lpnull(ctx);
+    if(idx >= ctx->capacity)
+        lppanic(LP_OUT_OF_RANGE);
+    char *r = ctx->data[idx];
+    ctx->data[idx] = 0;
+    return r;
+}
+
+void lp_array_clean(lp_vm_array *ctx)
+{
+    lpnull(ctx);
+    lpfree(ctx->data);
 }
