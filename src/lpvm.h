@@ -150,7 +150,7 @@ void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size);
 
 lpvmbyte* lp_vm_stack_lea(lp_vm_ctx *ctx, lpsize sz);
 
-void lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size);
+void *lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size);
 #define lp_vm_push(ctx,type,v) lp_vm_pushc(ctx,&v,sizeof(type))
 
 void *lp_vm_popc(lp_vm_ctx *ctx, lpptrsize size);
@@ -165,4 +165,9 @@ char lp_vm_nextop(lp_vm_ctx *ctx);
 lpvmptr lp_vm_nextop_ptr(lp_vm_ctx *ctx);
 
 lpvmvalue lp_vm_nextop_value(lp_vm_ctx *ctx);
+
+void *lp_vm_op_push(lp_vm_ctx *ctx, char *v, lpsize sz);
+#define lp_bin_pushop(ctx,op) lp_vm_op_push(ctx,&op,1)
+#define lp_bin_pushval(ctx,v) lp_vm_op_push(ctx,&v,sizeof(lpvmvalue))
+#define lp_bin_pushptr(ctx,v) lp_vm_op_push(ctx,&v,sizeof(lpvmptr))
 #endif

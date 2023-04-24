@@ -18,7 +18,7 @@ enum
     LPT_KW_FOR,
     LPT_KW_FN,
     LPT_KW_RET,
-    LPT_KW_INT,
+    LPT_KW_LET,
     LPT_KW_STRING,
     LPT_EXCLAMATION, // !
     LPT_DOUBLEQUOTE, // "
@@ -50,7 +50,10 @@ enum
     LPT_LEFT_CURLY,
     LPT_RIGHT_CURLY
 };
-
+enum
+{
+    LPBT_INT
+};
 typedef struct
 {
     lptoken ttype;
@@ -73,35 +76,52 @@ typedef struct
 
 typedef struct 
 {
-    union name
+    union
     {
-        char *words;
-        char builtin_name[16];
+        lp_lex_token *words;
+        char *builtin_name;
     };
     union 
     {
         lpsize occupy_bytes;
         lpsize offset_bytes;
     };
-}lp_lex_type;
+}lp_parse_type;
 
 typedef struct 
 {
-    lp_lex_type root_type;
+    lp_parse_type root_type;
     lp_vm_array inner_types;
-}lp_lex_structed_type;
+}lp_parse_structed_type;
+
+enum{
+    LPCT_NULL,
+    LPCT_INT,
+    LPCT_STRING
+};
+typedef struct 
+{
+    lp_parse_structed_type *type;
+    union 
+    {
+        lpvmvalue v_number;
+        lpvmvalue v_stackoffset;
+        lpvmptr v_addr;
+    };
+    char const_type;
+}lp_parse_eval_value;
 
 
 typedef struct
 {
-    char *words;
-    union data
+    lp_lex_token *words;
+    union
     {
         lpvmvalue stack_offset;
         lpvmptr raw_pointer;
     };
-    lp_lex_structed_type *type;
-}lp_lex_symbol;
+    lp_parse_structed_type *type;
+}lp_parse_symbol;
 
 
 typedef struct 
@@ -111,6 +131,10 @@ typedef struct
     lp_vm_array token_table;
     lp_vm_array type_table;
     lp_vm_ctx *vm;
+    lpsize stack_offset;
+
+    lpbool (* input_callback)(char ** newcode, lpsize *sz);
+    lp_lex_token *cur_token;
 }lp_compiler;
 
 
@@ -124,6 +148,9 @@ LP_Err lp_lexer_do(lp_compiler *ctx);
 
 LP_Err lp_compiler_codegen(lp_compiler *ctx);
 
-lp_lex_token lp_lexer_next(lp_compiler *ctx);
+lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip);
 
+void lp_lexer_back(lp_compiler *ctx);
+
+char *lp_copy_str(char *str,lpsize len);
 #endif

@@ -1,7 +1,19 @@
 #include<stdio.h>
 #include<malloc.h>
+#include<stdlib.h>
+#include<string.h>
 #include"lpvm.h"
 #include"lpcompiler.h"
+char buf[100];
+lpbool input(char **codes, lpsize *sz)
+{
+    memset(buf,0,100);
+    gets(buf);
+    *codes = buf;
+    *sz = strlen(buf)+1;
+    return 1;
+}
+
 int main()
 {
     lp_vm_ctx ctx;
@@ -31,6 +43,7 @@ int main()
     *(uint32_t*)(&buf_codes[43])=0;
     lp_vm_start(&ctx,0);
     lp_compiler comp;
-    lp_compiler_init(&comp,&ctx,"if(a==233){",12);
+    lp_compiler_init(&comp,&ctx,"1*1+2*3-7",9);
+    comp.input_callback = input;
     lp_compiler_do(&comp);
 }

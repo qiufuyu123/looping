@@ -32,7 +32,7 @@ lpvmbyte* lp_vm_stack_lea(lp_vm_ctx *ctx, lpsize sz)
     return r;
 }
 
-void lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size)
+void *lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size)
 {
     lpnull(ctx && ptr && size);
     if(ctx->stack.esp + size >= ctx->stack.stack_ends)
@@ -41,7 +41,9 @@ void lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size)
         lppanic(LP_STACK_OVER_FLOW);
     }
     memcpy(ctx->stack.esp,ptr,size);
+    lpptrsize old = ctx->stack.esp;
     ctx->stack.esp+=size;
+    return old;
 }
 
 void *lp_vm_popc(lp_vm_ctx *ctx, lpptrsize size)
@@ -72,7 +74,7 @@ void lp_vm_code_init(lp_opcodes_ctx *ctx, char *codes, lpptrsize size)
     ctx->code_size = lp2ptr(size);
     ctx->codes = codes;
     ctx->pc = codes;
-    ctx->codes_end = ctx->codes + ctx->code_size;
+    ctx->codes_end = codes;
 }
 
 char lp_vm_nextop(lp_vm_ctx *ctx)
@@ -92,6 +94,22 @@ char lp_vm_nextop(lp_vm_ctx *ctx)
     }\
     type r = *(type*)opcodes.pc; \
     ctx->opcodes.pc+=sizeof(type); 
+
+void *lp_vm_op_push(lp_vm_ctx *ctx, char *v, lpsize sz)
+{
+    if(ctx->opcodes.codes_end + sz >= ctx->opcodes.codes + ctx->opcodes.code_size)
+    {
+        char *n = lprealloc(ctx->opcodes.codes,ctx->opcodes.code_size + 256);
+        lpnull(n);
+        ctx->opcodes.codes = n;
+        ctx->opcodes.code_size += 256;
+    }
+    memcpy(ctx->opcodes.codes_end,v,sz);\
+    void *r = ctx->opcodes.codes_end;
+    ctx->opcodes.codes_end += sz;
+    return r;
+    
+}
 
 lpvmptr lp_vm_nextop_ptr(lp_vm_ctx *ctx)
 {
@@ -149,6 +167,8 @@ void *lp_array_get(lp_vm_array *ctx, lpsize idx)
 
 void *lp_array_bottom(lp_vm_array *ctx)
 {
+    if(ctx->bottom >= ctx->top)
+        return 0;
     void *r = ctx->data[ctx->bottom];
     ctx->bottom++;
     return r;

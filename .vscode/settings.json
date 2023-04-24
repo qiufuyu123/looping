@@ -4,6 +4,9 @@
         "lptypes.h": "c",
         "lpvm.h": "c",
         "lperr.h": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "lpcompiler.h": "c",
+        "limits": "c",
+        "stdlib.h": "c"
     }
 }
