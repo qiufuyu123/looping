@@ -12,8 +12,11 @@ void lp_compiler_init(lp_compiler *ctx,lp_vm_ctx* vmctx, char *codebuf, lpsize b
     lp_array_init(&ctx->symbol_table,64,64);
     lp_array_init(&ctx->token_table,64,64);
     lp_array_init(&ctx->type_table,64,64);
+    lp_array_init(&ctx->glo_symbol_table,64,64);
     ctx->vm = vmctx;
+    //ctx->vm->opcodes.pc = 0;
     ctx->stack_offset = 0;
+    ctx->interpret_mode = 1;
 }
 
 static void lp_compiler_exit(int s)

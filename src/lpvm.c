@@ -132,7 +132,9 @@ char lp_vm_tresolve(lp_vm_ctx *ctx, lpopcode t, lpvmvalue *res_v1, lpvmvalue *re
         lp_vm_push(ctx,lpvmvalue,v1);\
     }
 #define _LP_VM_ARITH_AUTO(code,op) case code:\
-_LP_VM_ARITH(op,val1,val2,pval1) \
+val1=(lp_vm_pop(ctx,lpvmvalue)) op (lp_vm_pop(ctx,lpvmvalue));\
+lp_vm_push(ctx,lpvmvalue,val1); \
+lpdebug("[VM] BinOP!;\n");\
 break;
 #define _LP_VM_ARITH_AUTO_SINGLE(code,op) case code:\
 _LP_VM_ARITH_SINGLE(op,val1,pval1) \
@@ -152,12 +154,10 @@ lpvmptr lp_vm_from_raw_ptr(lp_vm_ctx *ctx, lpvmptr ptr)
     lppanic(LP_ILLEGAL_POINTER);
 }
 
-LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint)
+LP_Err lp_vm_continue(lp_vm_ctx *ctx)
 {
     LP_Vm_Opcodes op = 0;
     int stat = 0;
-    lpvmptr old_pc = ctx->opcodes.pc;
-    ctx->opcodes.pc += entrypoint;
     while (stat >= 0)
     {
         op = lp_vm_nextop(ctx);
@@ -181,6 +181,12 @@ LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint)
                 lp_vm_push(ctx,lpvmvalue,val2);
                 lpdebug("[VM] Load a CONST: %d to stack;\n",val2);
             }
+            break;
+        case LOP_PUSHs:
+            val1 = lp_vm_nextop_value(ctx); // get offset of stack
+            lpdebug("[VM] Op: Pushs, offset:0x%x;\n",val1);
+            lp_vm_push(ctx,lpvmvalue,*lp_vm_stackvisit(ctx,val1,1));
+            lp_vm_dump_stack(ctx);
             break;
         case LOP_NOP:
             break;
@@ -212,6 +218,8 @@ LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint)
         case LOP_LEA:
             lp_vm_stack_lea(ctx, lp_vm_nextop_value(ctx));
             break;
+        
+        
         _LP_VM_ARITH_AUTO(LOP_ADD, +)
         _LP_VM_ARITH_AUTO(LOP_MINUS, -)
         _LP_VM_ARITH_AUTO(LOP_MUL, *)
@@ -231,10 +239,19 @@ LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint)
 
         default:
             stat = -1;
+            lpdebug("[UNKNOWN VM OP:0x%x]\n",op);
             break;
         }
     }
-    ctx->opcodes.pc = old_pc;
     lpinfo("Vm end");
     lp_vm_dump_stack(ctx);
+}
+
+LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint)
+{
+    lpvmptr old_pc = ctx->opcodes.pc;
+    ctx->opcodes.pc += entrypoint;
+    lp_vm_continue(ctx);
+    ctx->opcodes.pc = old_pc;
+    
 }

@@ -60,11 +60,11 @@ lpvmvalue *lp_vm_stackvisit(lp_vm_ctx *ctx, lpvmvalue offset, lpbool is_ebp_base
 {
     if(is_ebp_based)
     {
-        return ((lpvmvalue*)ctx->stack.ebp)+ offset;
+        return (lpvmvalue*)(((char*)ctx->stack.ebp)+ offset);
     }
     else
     {
-        return ((lpvmvalue*)ctx->stack.esp)+ offset;
+        return (lpvmvalue*)(((char*)ctx->stack.esp)+ offset);
     }
 }
 

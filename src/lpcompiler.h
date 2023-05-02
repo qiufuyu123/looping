@@ -97,7 +97,8 @@ typedef struct
 enum{
     LPCT_NULL,
     LPCT_INT,
-    LPCT_STRING
+    LPCT_STRING,
+    LPCT_GENERED=0xff
 };
 typedef struct 
 {
@@ -121,19 +122,23 @@ typedef struct
         lpvmptr raw_pointer;
     };
     lp_parse_structed_type *type;
+    lpsize field;
 }lp_parse_symbol;
 
 
 typedef struct 
 {
     lp_lex_code_buf code_buf;
+    lp_vm_array glo_symbol_table;
     lp_vm_array symbol_table;
     lp_vm_array token_table;
     lp_vm_array type_table;
     lp_vm_ctx *vm;
     lpsize stack_offset;
+    lpsize func_field;
 
     lpbool (* input_callback)(char ** newcode, lpsize *sz);
+    lpbool interpret_mode;
     lp_lex_token *cur_token;
 }lp_compiler;
 

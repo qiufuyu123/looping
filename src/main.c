@@ -43,7 +43,7 @@ int main()
     *(uint32_t*)(&buf_codes[43])=0;
     lp_vm_start(&ctx,0);
     lp_compiler comp;
-    lp_compiler_init(&comp,&ctx,"1*1+2*3-7",9);
+    lp_compiler_init(&comp,&ctx,"let x:int = 2*3-7;let y:int = 2;",18);
     comp.input_callback = input;
     lp_compiler_do(&comp);
 }

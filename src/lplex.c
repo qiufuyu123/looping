@@ -197,7 +197,7 @@ void lp_lexer_back(lp_compiler *ctx)
 lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip)
 {
     lp_lex_token *r = lp_array_bottom(&ctx->token_table);
-    if(!r)
+    while(!r)
     {
         if(skip)
         {

@@ -20,6 +20,7 @@ typedef enum
     LOP_TCONSTSTACKDST, // const stack dst
     LOP_TNR,
     LOP_NOP,
+    LOP_PUSHs,
     LOP_LOADc,
     LOP_LOADcn,
     LOP_LOADst, // load a const to static
@@ -144,6 +145,8 @@ void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size, char *stack,
 
 LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint);
 
+LP_Err lp_vm_continue(lp_vm_ctx *ctx);
+
 void lp_vm_staticres_init(lp_staticres_ctx *ctx, char *data, lpsize ressize);
 
 void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size);
@@ -151,7 +154,7 @@ void lp_vm_stack_init(lp_stack_ctx *ctx, char *stacks, lpptrsize size);
 lpvmbyte* lp_vm_stack_lea(lp_vm_ctx *ctx, lpsize sz);
 
 void *lp_vm_pushc(lp_vm_ctx *ctx, char *ptr, lpptrsize size);
-#define lp_vm_push(ctx,type,v) lp_vm_pushc(ctx,&v,sizeof(type))
+#define lp_vm_push(ctx,type,v) lp_vm_pushc(ctx,&(v),sizeof(type))
 
 void *lp_vm_popc(lp_vm_ctx *ctx, lpptrsize size);
 #define lp_vm_pop(ctx,type) (*(type*)(lp_vm_popc(ctx,sizeof(type))))
