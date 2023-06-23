@@ -2,6 +2,7 @@
 #include"lperr.h"
 #include"lpmem.h"
 #include<stdio.h>
+#include<string.h>
 
 void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size,
                 char *stack, lpsize stack_size, char *codes, lpsize code_size,
@@ -27,86 +28,6 @@ static void lp_vm_dump_stack(lp_vm_ctx *ctx)
     }
     lpinfo(" ==> Dumping Vm Stack End");
     
-}
-
-char lp_vm_tresolve_single(lp_vm_ctx *ctx, lpopcode t, lpvmvalue *res_v1, lpvmvalue** dst)
-{
-    if(t == LOP_TPOPS)
-    {
-        *res_v1 = lp_vm_pop(ctx,lpvmvalue);
-    }else if(t == LOP_TCONST)
-    {
-        *res_v1 = lp_vm_nextop_value(ctx);
-    }else if(t == LOP_TCONSTSTACKDST)
-    {
-        *res_v1 = lp_vm_nextop_value(ctx);
-        if(t == LOP_TCONSTSTACKDST)
-        {
-            *dst = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            return 1;
-        }
-    }else if(t == LOP_TSTACK || t == LOP_TSTACKDST)
-    {
-        *res_v1 = *lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-        if(t == LOP_TSTACKDST)
-        {
-            *dst = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            return 1;
-        }
-    }
-    return 0;
-}
-
-lpvmvalue lp_vm_mvtresolve(lp_vm_ctx *ctx, char t)
-{
-    if(t == LOP_MVTCONST)
-        return lp_vm_nextop_value(ctx);
-    else if(t == LOP_MVTSTACK)
-        return lp_vm_pop(ctx,lpvmvalue);
-    else if(t == LOP_MVTADDR)
-        return *lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-    else
-    {
-        lpprintf(LPDERRO "Fail to resolve Mov_Type:%d;",t);
-        lppanic(LP_BAD_INSTR_FORMAT);
-    }
-}
-
-char lp_vm_tresolve(lp_vm_ctx *ctx, lpopcode t, lpvmvalue *res_v1, lpvmvalue *res_v2,lpvmvalue **res_dst)
-{
-    lpvmvalue *ptr_v1 = 0, *ptr_v2 = 0;
-    lpvmvalue v1 = 0, v2 = 0;
-    if(t == LOP_TPOPS)
-    {
-        *res_v1 = lp_vm_pop(ctx,lpvmvalue);
-        *res_v2 = lp_vm_pop(ctx,lpvmvalue);
-    }
-    else if(t == LOP_TCONST)
-    {
-        v1 = lp_vm_nextop_value(ctx);
-        v2 = lp_vm_nextop_value(ctx);
-        *res_v1 = v1;
-        *res_v2 = v2;
-    }else if(t == LOP_TCONSTSTACK || t == LOP_TCONSTSTACKDST)
-    {
-        *res_v1 = *lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-        *res_v2 = lp_vm_nextop_value(ctx);
-        if(t == LOP_TCONSTSTACKDST)
-        {
-            *res_dst = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            return 1;
-        }
-    }else if(t == LOP_TSTACK || t == LOP_TSTACKDST)
-    {
-        *res_v1 = *lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-        *res_v2 = *lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-        if(t == LOP_TSTACKDST)
-        {
-            *res_dst = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            return 1;
-        }
-    }
-    return 0;
 }
 
 #define _LP_VM_ARITH(op,v1,v2,dst)\
@@ -137,7 +58,6 @@ lp_vm_push(ctx,lpvmvalue,val1); \
 lpdebug("[VM] BinOP!;\n");\
 break;
 #define _LP_VM_ARITH_AUTO_SINGLE(code,op) case code:\
-_LP_VM_ARITH_SINGLE(op,val1,pval1) \
 break;
 
 lpvmptr lp_vm_from_raw_ptr(lp_vm_ctx *ctx, lpvmptr ptr)
@@ -162,6 +82,7 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
     {
         op = lp_vm_nextop(ctx);
         lpvmvalue val1 = 0, val2 = 0, *pval1 = 0, *pval2 = 0;
+        char cval1 = 0;
         lpvmptr vptr1 = 0;
         char op1 = 0, op2 = 0, op3 = 0;
         switch (op)
@@ -177,12 +98,16 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             lpdebug("[VM] Op: LOADcn, num:%d:\n",val1);
             for (int i = 0; i < val1; i++)
             {
-                val2 = lp_vm_nextop_value(ctx);
-                lp_vm_push(ctx,lpvmvalue,val2);
-                lpdebug("[VM] Load a CONST: %d to stack;\n",val2);
+                cval1 = lp_vm_nextop(ctx);
+                lp_vm_push(ctx,char,cval1);
+                lpdebug("[VM] Load a CONST: %d to stack;\n",cval1);
             }
             break;
-        case LOP_PUSHs:
+        case LOP_LOAD_STACKN:
+            val1 = lp_vm_nextop_value(ctx);
+            lp_vm_pushc(ctx,(char *)lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1),val1);
+            break;
+        case LOP_LOAD_STACK:
             val1 = lp_vm_nextop_value(ctx); // get offset of stack
             lpdebug("[VM] Op: Pushs, offset:0x%x;\n",val1);
             lp_vm_push(ctx,lpvmvalue,*lp_vm_stackvisit(ctx,val1,1));
@@ -190,31 +115,18 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             break;
         case LOP_NOP:
             break;
-        case LOP_POP:
-            // lp_vm_dump_stack(ctx);
-            val1 = lp_vm_pop(ctx,lpvmvalue);
-            val2 = lp_vm_nextop_value(ctx);
-            pval1 = lp_vm_stackvisit(ctx,val2,1);
-            *pval1 = val1;
-            lpdebug("[VM] Pop a value %x to stack #%x\n",val1,val2);
+        case LOP_SET_STACKN:
+            val1 = lp_vm_nextop_value(ctx);
+            pval1 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
+            pval2 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
+            memcpy(pval1,pval2,val1);
+            ctx->stack.esp -= val1;
             break;
-        case LOP_MOV:
-            op1 = lp_vm_nextop(ctx);
-            op2 = op1 & 0x0f;
-            op3 = op1 >> 4;
-            if(op3 == LOP_MVTADDR)
-                pval1 = lp_vm_from_raw_ptr(ctx,lp_vm_nextop_ptr(ctx));
-            else if(op3 == LOP_MVTSTACK)
-                pval1 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            else
-            {
-                lpprintf(LPDERRO "Instruction: Mov, Unsupported op_type:%d;\n",op3);
-                lppanic(LP_BAD_INSTR_FORMAT);
-            }
-            val1 = lp_vm_mvtresolve(ctx, op2);
-            *pval1 = val1;
-            lpdebug("[VM] Mov %d --> 0x%x;\n",val1,pval1);
+        case LOP_SET_STACK:
+            pval1 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
+            *pval1 = lp_vm_nextop_value(ctx);
             break;
+        
         case LOP_LEA:
             lp_vm_stack_lea(ctx, lp_vm_nextop_value(ctx));
             break;

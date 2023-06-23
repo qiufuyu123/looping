@@ -13,6 +13,7 @@ enum
     LPT_FLOAT,
     LPT_WORDS,
     LPT_KW_IF,
+    LPT_KW_STRUCT,
     LPT_KW_ELSE,
     LPT_KW_WHILE,
     LPT_KW_FOR,
@@ -52,7 +53,8 @@ enum
 };
 enum
 {
-    LPBT_INT
+    LPBT_INT,
+    LPBT_STR
 };
 typedef struct
 {
@@ -81,11 +83,8 @@ typedef struct
         lp_lex_token *words;
         char *builtin_name;
     };
-    union 
-    {
-        lpsize occupy_bytes;
-        lpsize offset_bytes;
-    };
+    lpsize occupy_bytes;
+    // lpsize offset_bytes;
 }lp_parse_type;
 
 typedef struct 
@@ -98,20 +97,9 @@ enum{
     LPCT_NULL,
     LPCT_INT,
     LPCT_STRING,
+    LPCT_PTR,
     LPCT_GENERED=0xff
 };
-typedef struct 
-{
-    lp_parse_structed_type *type;
-    union 
-    {
-        lpvmvalue v_number;
-        lpvmvalue v_stackoffset;
-        lpvmptr v_addr;
-    };
-    char const_type;
-}lp_parse_eval_value;
-
 
 typedef struct
 {
@@ -123,7 +111,32 @@ typedef struct
     };
     lp_parse_structed_type *type;
     lpsize field;
+    lpsize array_length;
 }lp_parse_symbol;
+
+typedef struct 
+{
+    char const_type;
+    lpbool is_loaded;
+    union
+    {
+        lp_parse_structed_type *type;
+        lp_parse_symbol *sym;
+    };
+    
+    union 
+    {
+        lpvmptr v_number;
+        lpvmptr v_stackoffset;
+        lpvmptr v_addr;
+    };
+    lpsize array_length;
+}lp_parse_eval_value;
+
+// typedef struct
+// {
+
+// }lp_parse_array_const;
 
 
 typedef struct 

@@ -12,21 +12,15 @@ typedef enum
 {
     // 0000_0000b
     LOP_ERR,
-    LOP_TPOPS,      // pop v1, pop v2, push v1 + v2
-    LOP_TCONST,     // const const
-    LOP_TCONSTSTACK, // stack const
-    LOP_TSTACK,     // stack stack
-    LOP_TSTACKDST,   // stack stack dst
-    LOP_TCONSTSTACKDST, // const stack dst
-    LOP_TNR,
     LOP_NOP,
-    LOP_PUSHs,
+    LOP_LOAD_STACK,
+    LOP_LOAD_STACKN,
     LOP_LOADc,
     LOP_LOADcn,
     LOP_LOADst, // load a const to static
     LOP_LEA,
-    LOP_POP,
-    LOP_MOV,
+    LOP_SET_STACK,
+    LOP_SET_STACKN,
     LOP_ADD,
     LOP_MINUS,
     LOP_MUL,

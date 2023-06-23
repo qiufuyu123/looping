@@ -4,7 +4,7 @@
 #include<stdlib.h>
 #define lp_nexttoken lp_lexer_next(ctx,0)
 #define lp_nexttoken_skipable lp_lexer_next(ctx,1)
-#define LP_BUILTIN_TYPE_NUM 1
+#define LP_BUILTIN_TYPE_NUM 2
 #define LP_ERR(x,t) lpprintf("[PARSER] At row:%d,col:%d:\n%s\n",(t).row,(t).col,x); exit(-1);
 #define LP_ERR_MATCH(t,tt) lpprintf("[PARSER] At row:%d,col:%d:\nFail to match symbol: %d\n",(t).row,(t).col,(tt)); exit(-1);
 #define LP_ASSERT(x,f) do{if(!(x)){f;return -1;}}while(0);
@@ -17,8 +17,24 @@ const lp_parse_structed_type lp_builtin_types[LP_BUILTIN_TYPE_NUM] ={
             .occupy_bytes = 4,
         },
         .inner_types = 0
+    },
+    {
+        .root_type={
+            .builtin_name = "str",
+            .occupy_bytes = 1,
+        },
+        .inner_types = 0
+    },
+    {
+        .root_type={
+            .builtin_name = "ptr",
+            .occupy_bytes = 4,
+        },
+        .inner_types = 0
     }
 };
+
+
 
 void lp_parser_push_op(lp_compiler *ctx, char op)
 {
@@ -44,15 +60,29 @@ lp_parse_eval_value *lp_new_eval_val(lp_parse_structed_type *type, lpvmptr value
     r->type = type;
     r->v_addr = value;
     r->const_type = const_type;
+    r->array_length = 1;
+    r->is_loaded = 0;
     return r;
 }
 
-lp_parse_symbol *lp_new_symbol(lp_compiler *ctx, lp_parse_structed_type *type, lp_lex_token *name)
+lp_parse_structed_type *lp_new_structed_type_root(lp_lex_token *name)
+{
+    lp_parse_structed_type *r = lpmalloc(sizeof(lp_parse_structed_type));
+    lpnull(r);
+    r->root_type.words = name;
+    lp_array_init(&r->inner_types,16,16);
+    return r;
+}
+
+lp_parse_symbol *lp_new_symbol(lp_compiler *ctx, lp_parse_structed_type *type, lp_lex_token *name,lpbool auto_offset)
 {
     lp_parse_symbol *r = lpmalloc(sizeof(lp_parse_symbol));
     lpnull(r);
-    r->stack_offset = ctx->stack_offset;
-    ctx->stack_offset += type->root_type.occupy_bytes;
+    if(auto_offset)
+    {
+        r->stack_offset = ctx->stack_offset;
+        ctx->stack_offset += type->root_type.occupy_bytes;
+    }
 
     //TODO: Add IL Generate
 
@@ -102,7 +132,7 @@ void lp_parser_gen_binopcode(lp_compiler *ctx, lp_lex_token t)
 
 void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
 {
-    if(v->const_type == LPCT_GENERED)
+    if(v->is_loaded)
         return;
     if(v->const_type)
     {
@@ -111,14 +141,64 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
             lp_parser_push_op(ctx,LOP_LOADc);
             lp_bin_pushval(ctx->vm,v->v_number);
             lpdebug("[OP]: PUSH 0x%x;\n",v->v_number);
+            //ctx->stack_offset += 4;
+        }else if(v->const_type == LPCT_STRING)
+        {
+            //TODO: Use static resource
+            char *data = v->v_addr;
+            lpvmvalue len = v->array_length;
+            lpdebug("Load:%s %d;\n",data,len);
+            lp_parser_push_op(ctx,LOP_LOADcn);
+            lp_bin_pushval(ctx->vm,len);
+            lp_vm_op_push(ctx->vm,data,len);
+            //v->v_stackoffset = ctx->stack_offset;
+            //ctx->stack_offset += len;
+            v->const_type = LPCT_PTR;
+            v->v_addr = ctx->stack_offset;
+            ctx->stack_offset += v->array_length;
         }
     }else
     {
-        lp_parser_push_op(ctx,LOP_PUSHs);
-        lp_bin_pushval(ctx->vm,v->v_stackoffset);
-        lpdebug("[OP]: PUSHs 0x%x;\n",v->v_stackoffset);
+        char *data = v->v_stackoffset;
+        lpvmvalue len = v->sym->array_length * v->sym->type->root_type.occupy_bytes;
+        lpdebug("Load:0x%x %d;\n",data,len);
+        lp_parser_push_op(ctx,LOP_LOAD_STACKN);
+        lp_bin_pushval(ctx->vm,len);
+        lp_bin_pushval(ctx->vm,data);
+            //ctx->stack_offset += len;
+        //TODO: Multibytes load
     }
-    v->const_type = LPCT_GENERED;
+    v->is_loaded = 1;
+    
+}
+
+void lp_parser_gen_assigncode(lp_compiler *ctx, lp_parse_eval_value *left, lp_parse_eval_value *right)
+{
+    lpdebug("Assign :%d --> %d\n",ctx->stack_offset,left->v_stackoffset);
+    if(!right->is_loaded)
+    {
+        lp_parser_gen_loadcode(ctx,right);
+    }
+    lp_parser_push_op(ctx,LOP_SET_STACKN);
+    lp_bin_pushval(ctx->vm,right->type->root_type.occupy_bytes);
+    lp_bin_pushval(ctx->vm,left->v_stackoffset);
+    lp_bin_pushval(ctx->vm,ctx->stack_offset);
+    
+
+}
+
+lp_parse_structed_type *lp_parser_get_type(lp_compiler*ctx, lp_lex_token *name)
+{
+    lp_parse_structed_type *type = lp_get_builtin_type(name->v_str);
+    if(type)
+        return type;
+    for (int i = 0; i < ctx->type_table.top; i++)
+    {
+        type = ctx->type_table.data[i];
+        if(!strcmp(type->root_type.words->v_str,name->v_str))
+            return type;
+    }
+    return 0;
     
 }
 
@@ -135,13 +215,13 @@ lp_parse_symbol *lp_parser_add_variable(lp_compiler *ctx, lp_lex_token *name, lp
     lp_parse_structed_type *t = &lp_builtin_types[LPBT_INT];
     if(type)
     {
-        t = lp_get_builtin_type(type->v_str);
+        t = lp_parser_get_type(ctx,type);
         if(!t)
         {
             LP_ERR("Unknown Data Type",*type);
         }
     }
-    lp_parse_symbol* r = lp_new_symbol(ctx,t,name);
+    lp_parse_symbol* r = lp_new_symbol(ctx,t,name,1);
     
     r->field = ctx->func_field;
     
@@ -151,7 +231,7 @@ lp_parse_symbol *lp_parser_add_variable(lp_compiler *ctx, lp_lex_token *name, lp
         //lpdebug("GLO VAR!\n");
         lp_array_push(&ctx->glo_symbol_table,r);
     }
-    lpdebug("Assgin A Variable:`%s`, addr:`0x%x`\n",r->words->v_str,r->stack_offset);
+    lpdebug("Assgin A Variable:`%s`, addr:`0x%x`, size:%d bytes\n",r->words->v_str,r->stack_offset,r->type->root_type.occupy_bytes);
     return r;
 }
 
@@ -186,16 +266,31 @@ static void lp_parser_print_val(lp_parse_eval_value *v)
 
 lp_parse_eval_value *lp_parser_expr(lp_compiler *ctx);
 
+lp_parse_eval_value *lp_parser_left_eval(lp_compiler *ctx)
+{
+    lp_parse_symbol *sym = lp_parser_lookup_var(ctx,ctx->cur_token);
+    if(!sym)
+    {
+        LP_ERR("Unknown Variable Name!",*ctx->cur_token);
+    }
+    lpdebug("[EVAL] : A variable;\n");
+    lp_parse_eval_value *v = lp_new_eval_val(sym,sym->stack_offset,0); 
+    v->const_type = 0;
+    v->sym = sym;
+    lp_parser_gen_loadcode(ctx,v);
+    return v;
+}
+
 lp_parse_eval_value *lp_parser_expr_factor(lp_compiler *ctx)
 {
     // constant
     // -/+
     // (
-    // variable
+    // leftvalue
     lp_lex_token *t = lp_nexttoken;
     if(t->ttype == LPT_NUMBER)
     {
-        return lp_new_eval_val(&lp_builtin_types[LPBT_INT],t->v_int,LPCT_INT);
+        return lp_new_eval_val(&lp_builtin_types[LPCT_INT],t->v_int,LPCT_INT);
     }else if(t->ttype == LPT_ADD)
     {
         lp_parse_eval_value *r = lp_parser_expr_factor(ctx);
@@ -217,21 +312,36 @@ lp_parse_eval_value *lp_parser_expr_factor(lp_compiler *ctx)
         return r;
     }else if(t->ttype == LPT_WORDS)
     {
-        lp_parse_symbol *sym = lp_parser_lookup_var(ctx,t);
-        if(!sym)
-        {
-            LP_ERR("Unknown Variable Name!",*t);
-        }
-        lpdebug("[EVAL] : A variable;\n");
-        
-        lp_parse_eval_value *v = lp_new_eval_val(sym->type,sym->stack_offset,0);   
+        //TODO: realize array visiting
         //lp_parser_gen_loadcode(ctx,v);
-        return v;
+        lp_parse_eval_value *r = lp_parser_left_eval(ctx);
+        t = lp_nexttoken_skipable;
+        if(t)
+        {
+            if(t->ttype == LPT_LEFT_BRACKET)
+            {
+                // index of array
+                t = lp_nexttoken;
+                lp_parser_match(t,LPT_NUMBER);
+                lpsize index = t->v_int;
+                if(index >= r->sym->array_length)
+                {
+                    //LP_ERR("",t)
+                }
+            }
+        }
     }
     else if(t->ttype == LPT_LEFT_PAREN)
     {
         lp_parse_eval_value *v = lp_parser_expr(ctx);
         lp_parser_match(lp_nexttoken,LPT_RIGHT_PAREN);
+        return v;
+    }
+    else if(t->ttype == LPT_STRING)
+    {
+        lp_parse_eval_value *v = lp_new_eval_val(&lp_builtin_types[LPBT_STR],t->v_str,LPCT_STRING);
+        v->array_length = strlen(t->v_str)+1;
+        lp_parser_gen_loadcode(ctx,v);
         return v;
     }
     else 
@@ -309,16 +419,23 @@ lp_parse_eval_value *lp_parser_expr(lp_compiler *ctx)
     return left_val;
 }
 
-lp_parse_eval_value *lp_parser_root_expr(lp_compiler *ctx)
+lp_parse_eval_value *lp_parser_root_expr(lp_compiler *ctx,lpbool gen_load_in_const)
 {
     lp_parse_eval_value *v = lp_parser_expr(ctx);
     // Generate IL codes;
-    if(v->const_type)
+    if(!v->is_loaded && gen_load_in_const)
     {
         lp_parser_gen_loadcode(ctx,v);
     }
     return v;
 }
+
+// lp_parse_structed_type *lp_parser_get_type(lp_parse_eval_value *v)
+// {
+//     if(v->const_type)
+//         return v->type;
+//     return v->sym->type;
+// }
 
 LP_Err lp_parser_statment(lp_compiler *ctx)
 {
@@ -340,34 +457,92 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
         {
             LP_ERR("Expect a '=' after `let`",*sep);
         }
-        lp_parse_eval_value *right = lp_parser_root_expr(ctx);
-        lp_parse_symbol * sym = lp_parser_add_variable(ctx,left,type);
-        if(!type)
+        lp_parse_eval_value *right = lp_parser_root_expr(ctx,1);
+        if(right->const_type)
         {
-            // Auto Derivation
-            sym->type = right->type;
-            if(!sym->type)
+            lp_parse_symbol * sym = lp_parser_add_variable(ctx,left,type);
+            if(!type)
             {
-                LP_ERR("Fail to auto-derivate type here!",*left);
+            // Auto Derivation
+                sym->type = right->type;
+                if(!sym->type)
+                {
+                    LP_ERR("Fail to auto-derivate type here!",*left);
+                }
             }
+            // Type Check
+            //
+
+            sym->array_length = right->array_length;
+        }else{
+            lp_parse_symbol*sym = lp_parser_add_variable(ctx,left,0);
+            sym->type = right->sym->type;
+            sym->array_length = right->array_length;
         }
         //lpdebug("Let ok");
         LP_ASSERT(left,lpprintf(LPDINFO"[Parse]: Expect a expression after '='"))
         //lpdebug("match :type: %s left:%s; right:",type->v_str?:"auto", left->v_str);
         lp_parser_print_val(right);
-
+        //ctx->stack_offset += right->type->root_type.occupy_bytes;
         //lp_parse_symbol * sym = lp_parser_add_variable(ctx,left,type);
         
 
     }
+    else if(root_t->ttype == LPT_KW_STRUCT)
+    {
+        lp_lex_token *root_name = lp_nexttoken;
+        lp_parser_match(root_name,LPT_WORDS);
+        lp_parser_match(lp_nexttoken,LPT_LEFT_CURLY);
+        lp_lex_token *t = lp_nexttoken;
+        // Build a structure type
+        lp_parse_structed_type *new_type = lp_new_structed_type_root(root_name);
+        lpsize cur_offset = 0;
+        while (t->ttype!=LPT_RIGHT_CURLY)
+        {
+            lp_parser_match(t,LPT_KW_LET);
+            lp_lex_token *name = lp_nexttoken;
+            lp_parser_match(name,LPT_WORDS);
+            lp_parser_match(lp_nexttoken,LPT_COLON);
+            lp_lex_token *type = lp_nexttoken;
+            lp_parser_match(type,LPT_WORDS);
+            //lpdebug("match inner type...");
+            lp_parse_structed_type *inner_type = lp_parser_get_type(ctx,type);
+            //lpdebug("[%s]",inner_type->root_type.builtin_name);
+            if(!inner_type)
+            {
+                LP_ERR("Unknown Type!\n",*type);
+            }
+            lp_parse_symbol *sym = lp_new_symbol(ctx,inner_type,name,0);
+            if(!sym)
+            {
+                LP_ERR("Fail to create a symbol for structure!",*type);
+            }
+            sym->stack_offset = cur_offset;
+            //lp_array_push(&new_type->inner_types,sym);
+            cur_offset += inner_type->root_type.occupy_bytes;
+            lpdebug("[PARSER]: Add a symbol: %s, type:%s to struct:%s offset:%d;\n",sym->words->v_str,inner_type->root_type.builtin_name,new_type->root_type.words->v_str,sym->stack_offset);
+            t=lp_nexttoken;
+            if(t->ttype == LPT_SEMICOLON)
+            {
+                t = lp_nexttoken;
+            }
+        }
+        new_type->root_type.occupy_bytes = cur_offset;
+        lpdebug("Create a structure:%s size:%d;\n",new_type->root_type.words->v_str,new_type->root_type.occupy_bytes);
+        lp_array_push(&ctx->type_table,new_type);
+    }
     else if(root_t->ttype == LPT_WORDS)
     {
-        
+        lp_parse_eval_value *left = lp_parser_left_eval(ctx);
+        lp_parser_match(lp_nexttoken,LPT_EQ);
+        lp_parse_eval_value *right = lp_parser_root_expr(ctx,0);
+        lp_parser_gen_assigncode(ctx,left,right);
+        lpdebug("Assign a var;\n");
     }
     else if(root_t->ttype == LPT_NUMBER)
     {
         lp_lexer_back(ctx);
-        lp_parse_eval_value *left = lp_parser_root_expr(ctx);
+        lp_parse_eval_value *left = lp_parser_root_expr(ctx,0);
         lp_parser_print_val(left);
     }
     lp_parser_match(lp_nexttoken,LPT_SEMICOLON);
