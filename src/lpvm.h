@@ -4,15 +4,10 @@
 
 typedef enum
 {
-    LOP_MVTCONST = 0,
-    LOP_MVTSTACK = 1,
-    LOP_MVTADDR = 2,
-}LP_Vm_Movtag;
-typedef enum
-{
     // 0000_0000b
     LOP_ERR,
     LOP_NOP,
+
     LOP_LOAD_STACK,
     LOP_LOAD_STACKN,
     LOP_LOADc,
@@ -21,6 +16,7 @@ typedef enum
     LOP_LEA,
     LOP_SET_STACK,
     LOP_SET_STACKN,
+    
     LOP_ADD,
     LOP_MINUS,
     LOP_MUL,
@@ -38,22 +34,7 @@ typedef enum
     LOP_GRT_EQ,
     LOP_LESS_EQ
 }LP_Vm_Opcodes;
-/**
- * In Looping virtual machine, we only support 2 types of instructions
- * 1st:
- *      I  Param1, Param2....
- * 2st:
- *      I T Param1, Param2...
- *      (T) indicates instruction subtype:
- *          In details:
- *              LOP_ADD 0 1 2 (type=0 means the addition of 2 constant)
- *              LOP_ADD 1 2 33 (type=1 means the addition of 1 constant and 1 stack value)
- *              LOP_ADD 2 33 44 (type=2 means the addition of 2 stack value, return to stack top)
- *              LOP_ADD 3 <0x11> <0x22>  
- *              LOP_ADD 4 dst 44 55                                     ...   return to stack : dst
- *              LOP_ADD 5 dst <0x44> <0x55> 
- *              
-*/
+
 
 typedef struct 
 {

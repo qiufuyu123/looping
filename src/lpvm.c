@@ -115,22 +115,6 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             break;
         case LOP_NOP:
             break;
-        case LOP_SET_STACKN:
-            val1 = lp_vm_nextop_value(ctx);
-            pval1 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            pval2 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            memcpy(pval1,pval2,val1);
-            ctx->stack.esp -= val1;
-            break;
-        case LOP_SET_STACK:
-            pval1 = lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1);
-            *pval1 = lp_vm_nextop_value(ctx);
-            break;
-        
-        case LOP_LEA:
-            lp_vm_stack_lea(ctx, lp_vm_nextop_value(ctx));
-            break;
-        
         
         _LP_VM_ARITH_AUTO(LOP_ADD, +)
         _LP_VM_ARITH_AUTO(LOP_MINUS, -)

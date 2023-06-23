@@ -1,5 +1,6 @@
 #include"lpcompiler.h"
 #include"lperr.h"
+#include "lptypes.h"
 #include<ctype.h>
 #include<string.h>
 #include<stdlib.h>
@@ -20,7 +21,7 @@ lp_lex_token *lp_new_token(lp_compiler *ctx, lptoken type, lpptrsize data)
     r->col = ctx->code_buf.col;
     r->row = ctx->code_buf.row;
     r->ttype = type;
-    r->v_str = data;
+    r->v_str = (char*)data;
     return r;
 }
 char lp_nextc(lp_compiler *ctx)
@@ -89,7 +90,7 @@ lptoken lp_analyze_split(char c)
     return LPT_NULL;
 
 }
-static lp_lexer_dump(lp_compiler *ctx)
+static void lp_lexer_dump(lp_compiler *ctx)
 {
     lpprintf("===== Lexer Dump Token =====\n");
     lpprintf("Bottom:%d to Top:%d\n",ctx->token_table.bottom,ctx->token_table.top);
@@ -97,7 +98,7 @@ static lp_lexer_dump(lp_compiler *ctx)
     {
         if(ctx->token_table.data[i])
         {
-            lp_lex_token *t = ctx->token_table.data[i];
+            lp_lex_token *t = (lp_lex_token*)ctx->token_table.data[i];
             lpprintf("TYPE:%d, Val:%d",t->ttype,t->v_int);
             if(t->ttype == LPT_STRING || t->ttype == LPT_WORDS)
             {
@@ -146,7 +147,7 @@ LP_Err lp_lexer_do(lp_compiler *ctx)
             LEX_FAIL_MATCH("Bad Words or Keyword Format!")
             lptoken tk = lp_analyze_keyword(bufs);
             if(tk == LPT_NULL)
-                lp_array_push(&ctx->token_table,lp_new_token(ctx,LPT_WORDS,lp_copy_str(bufs,i+1)));
+                lp_array_push(&ctx->token_table,lp_new_token(ctx,LPT_WORDS,(lpptrsize)lp_copy_str(bufs,i+1)));
             else
                 lp_array_push(&ctx->token_table,lp_new_token(ctx,tk,0));
             lp_backc(ctx);
@@ -163,7 +164,7 @@ LP_Err lp_lexer_do(lp_compiler *ctx)
                 c = lp_nextc(ctx);
             }
             bufs[i] = '\0';
-            lp_array_push(&ctx->token_table,lp_new_token(ctx,LPT_STRING,lp_copy_str(bufs,i+1)));
+            lp_array_push(&ctx->token_table,lp_new_token(ctx,LPT_STRING,(lpptrsize)lp_copy_str(bufs,i+1)));
         }
         else if(ispunct(c))
         {

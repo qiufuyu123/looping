@@ -1,5 +1,6 @@
 #include"lpmem.h"
 #include"lperr.h"
+#include <stddef.h>
 #include<string.h>
 #include<stdio.h>
 void li_setup_mem(li_ctx_t *ctx, size_t buf_size, pointer_t buf)
@@ -23,7 +24,7 @@ static li_mem_block_hearder* li_split(li_mem_block_hearder *header,size_t sz)
 
 static void li_merge(li_ctx_t *ctx,li_mem_block_hearder *head)
 {
-    size_t maxptr=(char *)ctx->mem_header + ctx->memsz;
+    size_t maxptr=(size_t)((char *)ctx->mem_header + ctx->memsz);
     if(head->next == maxptr)
         return;
     if(head->next->used == 0)
@@ -39,7 +40,7 @@ static void li_merge(li_ctx_t *ctx,li_mem_block_hearder *head)
 pointer_t li_malloc(li_ctx_t *ctx,size_t size)
 {
     li_mem_block_hearder *cur=ctx->mem_header;
-    size_t maxptr=(char *)ctx->mem_header + ctx->memsz;
+    size_t maxptr=(size_t)((char *)ctx->mem_header + ctx->memsz);
     while (1)
     {
         if(cur == maxptr)

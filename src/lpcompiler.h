@@ -1,6 +1,7 @@
 #ifndef _H_LEX
 #define _H_LEX
 
+#include "lptypes.h"
 #include"lpvm.h"
 
 typedef uint8_t lptoken;
@@ -111,6 +112,7 @@ typedef struct
     };
     lp_parse_structed_type *type;
     lpsize field;
+    lpsize ptr_depth;
     lpsize array_length;
 }lp_parse_symbol;
 

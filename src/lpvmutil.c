@@ -140,7 +140,7 @@ void lp_array_init(lp_vm_array *ctx, lpsize sz, lpsize unit_sz)
     lpnull(ctx->data);
     ctx->top=0;
     ctx->bottom=0;
-    return LP_OK;
+    //return LP_OK;
 }
 
 void lp_array_push(lp_vm_array *ctx, char *data)

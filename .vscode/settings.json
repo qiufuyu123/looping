@@ -8,5 +8,6 @@
         "lpcompiler.h": "c",
         "limits": "c",
         "stdlib.h": "c"
-    }
+    },
+    "workbench.tree.expandMode": "doubleClick"
 }
