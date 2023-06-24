@@ -255,6 +255,12 @@ void lp_parser_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode);
 
 void lp_parser_left_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
 {
+    lpbool is_deptr = 0;
+    if(ctx->cur_token->ttype == LPT_ADDRESS)
+    {
+        is_deptr = 1;
+        lp_nexttoken;
+    }
     lp_parse_symbol *sym = lp_parser_lookup_var(ctx,ctx->cur_token);
     if(!sym)
     {
@@ -266,8 +272,19 @@ void lp_parser_left_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
     r->ptr_depth = sym->ptr_depth;
     r->v_stackoffset = sym->stack_offset;
     r->array_length = sym->array_length;
-    if(gencode)
+    if(gencode && !is_deptr)
         lp_parser_gen_loadcode(ctx,r);
+    if(is_deptr)
+    {
+        if(!r->is_var)
+        {
+            LP_ERR("Unable to assign a pointer to a non-variable", *ctx->cur_token);
+        }
+        lp_parser_push_op(ctx, LOP_GETPTR);
+        lp_vm_op_push(ctx->vm, &r->v_stackoffset, 4);
+        r->ptr_depth++;
+        r->is_loaded = 1;
+    }
 }
 
 int lp_parse_ptrdepth(lp_compiler *ctx)
@@ -306,7 +323,7 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
             lp_parser_gen_loadcode(ctx,r);
             lp_parser_push_op(ctx,LOP_MINUS);
         }
-    }else if(t->ttype == LPT_WORDS)
+    }else if(t->ttype == LPT_WORDS || (t->ttype == LPT_ADDRESS && lp_forwardtoken->ttype == LPT_WORDS))
     {
         //TODO: realize array visiting
         //lp_parser_gen_loadcode(ctx,v);
@@ -362,22 +379,6 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
         lp_new_eval_val(r,&lp_builtin_types[LPBT_STR],t->v_str,0);
         r->array_length = strlen(t->v_str)+1;
         lp_parser_gen_loadcode(ctx,r);
-    }
-    else if(t->ttype == LPT_ADDRESS)
-    {
-        // get pointer
-        // lp_parser_left_eval(ctx, lp_parse_eval_value *r, lpbool gencode)
-        lp_parser_expr_factor(ctx, r, 0);
-        if(!r->is_var)
-        {
-            LP_ERR("Cannot get address of a constant!",*ctx->cur_token);
-        }
-        lpdebug("[PARSER] Try to pointer");
-        lp_parser_push_op(ctx, LOP_GETPTR);
-        lp_vm_op_push(ctx->vm, &r->v_stackoffset, 4);
-        r->ptr_depth++;
-        r->is_loaded = 1;
-        
     }
     else if(t->ttype == LPT_MUL)
     {
