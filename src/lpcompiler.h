@@ -121,7 +121,7 @@ typedef struct
 
 typedef struct 
 {
-    char const_type;
+    char is_var;
     lpbool is_loaded;
     union
     {

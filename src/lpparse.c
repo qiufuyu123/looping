@@ -56,13 +56,13 @@ lp_parse_structed_type *lp_get_builtin_type(char *name)
     return 0;
 }
 
-void lp_new_eval_val(lp_parse_eval_value *r,lp_parse_structed_type *type, lpvmptr value, char const_type)
+void lp_new_eval_val(lp_parse_eval_value *r,lp_parse_structed_type *type, lpvmptr value,lpbool isvar)
 {
     //lp_parse_eval_value *r = lpmalloc(sizeof(lp_parse_eval_value));
     lpnull(r);
     r->type = type;
     r->v_addr = value;
-    r->const_type = const_type;
+    r->is_var = isvar;
     r->array_length = 1;
     r->is_loaded = 0;
     r->ptr_depth = 0;
@@ -138,29 +138,11 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
 {
     if(v->is_loaded)
         return;
-    if(v->const_type)
+    if(!v->is_var)
     {
-        if(v->const_type == LPCT_INT)
-        {
-            lp_parser_push_op(ctx,LOP_LOADc);
-            lp_bin_pushval(ctx->vm,v->v_number);
-            lpdebug("[OP]: PUSH 0x%x;\n",v->v_number);
-            //ctx->stack_offset += 4;
-        }else if(v->const_type == LPCT_STRING)
-        {
-            //TODO: Use static resource
-            char *data = v->v_addr;
-            lpvmvalue len = v->array_length;
-            lpdebug("Load:%s %d;\n",data,len);
-            lp_parser_push_op(ctx,LOP_LOADcn);
-            lp_bin_pushval(ctx->vm,len);
-            lp_vm_op_push(ctx->vm,data,len);
-            //v->v_stackoffset = ctx->stack_offset;
-            //ctx->stack_offset += len;
-            v->const_type = LPCT_PTR;
-            v->v_addr = ctx->stack_offset;
-            ctx->stack_offset += v->array_length;
-        }
+        lp_parser_push_op(ctx,LOP_LOADc);
+        lp_bin_pushval(ctx->vm,v->v_number);
+        lpdebug("[OP]: PUSH 0x%x;\n",v->v_number);
     }else
     {
         lpptrsize data = v->v_stackoffset;
@@ -280,11 +262,20 @@ void lp_parser_left_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
     }
     lpdebug("[EVAL] : A variable;\n");
     lp_new_eval_val(r,sym,sym->stack_offset,0); 
-    r->const_type = 0;
+    r->is_var = 1;
     r->ptr_depth = sym->ptr_depth;
     r->sym = sym;
     if(gencode)
         lp_parser_gen_loadcode(ctx,r);
+}
+
+int lp_parse_ptrdepth(lp_compiler *ctx)
+{
+    int r=0;
+    while (lp_nexttoken->ttype == LPT_MUL) {
+        r++;
+    }
+    return r;
 }
 
 void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode)
@@ -296,14 +287,14 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
     lp_lex_token *t = lp_nexttoken;
     if(t->ttype == LPT_NUMBER)
     {
-        lp_new_eval_val(r,&lp_builtin_types[LPCT_INT],t->v_int,LPCT_INT);
+        lp_new_eval_val(r,&lp_builtin_types[LPCT_INT],t->v_int,0);
     }else if(t->ttype == LPT_ADD)
     {
         lp_parser_expr_factor(ctx,r,gencode);
     }else if(t->ttype == LPT_MINUS)
     {
         lp_parser_expr_factor(ctx,r,gencode);
-        if(r->const_type == LPCT_INT)
+        if(!r->is_var)
             r->v_number = -r->v_number;
         else
         {
@@ -339,20 +330,40 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
     }
     else if(t->ttype == LPT_LEFT_PAREN)
     {
+        lp_parse_structed_type* tp = 0;
+        int ptr_depth = 0;
+        lp_lex_token *nxt = lp_forwardtoken;
+        if(nxt->ttype == LPT_WORDS)
+        {
+            // perhaps type-converter?
+            tp = lp_parser_get_type(ctx, nxt);
+            if(tp)
+            {
+                lp_nexttoken;
+                ptr_depth = lp_parse_ptrdepth(ctx);
+                lp_parser_match(ctx->cur_token, LPT_RIGHT_PAREN);
+            }
+        }
         lp_parser_expr(ctx,r,gencode);
         lp_parser_match(lp_nexttoken,LPT_RIGHT_PAREN);
+        if(tp)
+        {
+            // Now force to convert the type
+            //r.
+        }
     }
     else if(t->ttype == LPT_STRING)
     {
-        lp_new_eval_val(r,&lp_builtin_types[LPBT_STR],t->v_str,LPCT_STRING);
+        lp_new_eval_val(r,&lp_builtin_types[LPBT_STR],t->v_str,0);
         r->array_length = strlen(t->v_str)+1;
         lp_parser_gen_loadcode(ctx,r);
     }
     else if(t->ttype == LPT_ADDRESS)
     {
         // get pointer
+        // lp_parser_left_eval(ctx, lp_parse_eval_value *r, lpbool gencode)
         lp_parser_expr_factor(ctx, r, 0);
-        if(r->const_type)
+        if(!r->is_var)
         {
             LP_ERR("Cannot get address of a constant!",*ctx->cur_token);
         }
@@ -361,12 +372,13 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
         lp_vm_op_push(ctx->vm, &r->sym->stack_offset, 4);
         r->ptr_depth++;
         r->is_loaded = 1;
+        
     }
     else if(t->ttype == LPT_MUL)
     {
         // de-pointer
         lp_parser_expr_factor(ctx, r, 1);
-        if(r->const_type)
+        if(!r->is_var)
         {
             lp_parser_gen_loadcode(ctx, r);
             //lp_parser_push_op(ctx, LOP_DEPTR);
@@ -420,7 +432,7 @@ void lp_parser_expr_term(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
     {
         lp_parse_eval_value right_val;
         lp_parser_expr_factor(ctx,&right_val,gencode);
-        if(left_val.const_type == LPCT_INT && left_val.const_type == LPCT_INT)
+        if((!left_val.is_var) && (!left_val.is_var))
         {
             left_val = *lp_parser_const_op(&left_val,&right_val,op);
         }else
@@ -456,7 +468,7 @@ void lp_parser_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
     {
         lp_parse_eval_value right_val;
         lp_parser_expr_term(ctx,&right_val,gencode);
-        if(left_val.const_type == LPCT_INT && left_val.const_type == LPCT_INT)
+        if((!left_val.is_var) && (!left_val.is_var))
         {
             left_val = *lp_parser_const_op(&left_val,&right_val,op);
         }else
@@ -502,7 +514,7 @@ void lp_parser_root_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gen_load
 lpbool lp_parser_raw_typechk(lp_parse_eval_value left,lp_parse_eval_value right)
 {
     lpvmvalue lsz=0,rsz=0;
-    if(left.const_type)
+    if(!left.is_var)
     {
         lsz = left.type->root_type.occupy_bytes * left.array_length;
     }else {
@@ -511,7 +523,7 @@ lpbool lp_parser_raw_typechk(lp_parse_eval_value left,lp_parse_eval_value right)
         else 
             lsz = left.sym->type->root_type.occupy_bytes * left.sym->array_length;
     }
-    if(right.const_type)
+    if(!right.is_var)
     {
         rsz = right.type->root_type.occupy_bytes * left.array_length;
     }
@@ -549,14 +561,11 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
             {
                 
                 lp_parser_root_expr(ctx,&right, 1);
-                if(right.const_type)
+                if(!right.is_var)
                 {
                     if(ptr_depth)
                     {
-                        if(right.const_type == LPCT_STRING)
-                        {
-                            //TODO: String pointer;
-                        }
+                        
                         //LP_ERR("Cannot assign a constant to a pointer!", *left);
                     }
                     sym = lp_parser_add_variable(ctx,left,type,0);
