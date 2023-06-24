@@ -123,12 +123,7 @@ typedef struct
 {
     char is_var;
     lpbool is_loaded;
-    union
-    {
-        lp_parse_structed_type *type;
-        lp_parse_symbol *sym;
-    };
-    
+    lp_parse_structed_type *type;
     union 
     {
         lpvmptr v_number;

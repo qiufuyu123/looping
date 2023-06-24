@@ -146,7 +146,7 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
     }else
     {
         lpptrsize data = v->v_stackoffset;
-        lpvmvalue len = v->sym->array_length * v->sym->type->root_type.occupy_bytes;
+        lpvmvalue len = v->array_length * v->type->root_type.occupy_bytes;
         lpdebug("Load:0x%x %d;\n",data,len);
         lp_parser_push_op(ctx,LOP_LOAD_STACKN);
         lp_bin_pushval(ctx->vm,len);
@@ -261,10 +261,11 @@ void lp_parser_left_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
         LP_ERR("Unknown Variable Name!",*ctx->cur_token);
     }
     lpdebug("[EVAL] : A variable;\n");
-    lp_new_eval_val(r,sym,sym->stack_offset,0); 
+    lp_new_eval_val(r,sym->type,sym->stack_offset,0); 
     r->is_var = 1;
     r->ptr_depth = sym->ptr_depth;
-    r->sym = sym;
+    r->v_stackoffset = sym->stack_offset;
+    r->array_length = sym->array_length;
     if(gencode)
         lp_parser_gen_loadcode(ctx,r);
 }
@@ -319,7 +320,7 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
                 t = lp_nexttoken;
                 lp_parser_match(t,LPT_NUMBER);
                 lpsize index = t->v_int;
-                if(index >= r->sym->array_length)
+                if(index >= r->array_length)
                 {
                     //LP_ERR("",t)
                 }
@@ -345,11 +346,15 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
             }
         }
         lp_parser_expr(ctx,r,gencode);
-        lp_parser_match(lp_nexttoken,LPT_RIGHT_PAREN);
+        
         if(tp)
         {
             // Now force to convert the type
-            //r.
+            r->type = tp;
+            r->array_length = 1; // TODO: Realize array
+            r->ptr_depth = ptr_depth;
+        }else {
+            lp_parser_match(lp_nexttoken,LPT_RIGHT_PAREN);
         }
     }
     else if(t->ttype == LPT_STRING)
@@ -369,7 +374,7 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
         }
         lpdebug("[PARSER] Try to pointer");
         lp_parser_push_op(ctx, LOP_GETPTR);
-        lp_vm_op_push(ctx->vm, &r->sym->stack_offset, 4);
+        lp_vm_op_push(ctx->vm, &r->v_stackoffset, 4);
         r->ptr_depth++;
         r->is_loaded = 1;
         
@@ -514,25 +519,14 @@ void lp_parser_root_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gen_load
 lpbool lp_parser_raw_typechk(lp_parse_eval_value left,lp_parse_eval_value right)
 {
     lpvmvalue lsz=0,rsz=0;
-    if(!left.is_var)
-    {
+    if(left.ptr_depth)
+        lsz = 4;
+    else
         lsz = left.type->root_type.occupy_bytes * left.array_length;
-    }else {
-        if(left.ptr_depth)
-            lsz = 4;
-        else 
-            lsz = left.sym->type->root_type.occupy_bytes * left.sym->array_length;
-    }
-    if(!right.is_var)
-    {
-        rsz = right.type->root_type.occupy_bytes * left.array_length;
-    }
-    else {
-        if(right.ptr_depth)
-            rsz = 4;
-        else 
-            rsz = right.sym->type->root_type.occupy_bytes * right.sym->array_length;
-    }
+    if(right.ptr_depth)
+        rsz = 4;
+    else
+        rsz = right.type->root_type.occupy_bytes * right.array_length;
     lpdebug("[PARSER] Raw type check:left:%d,right:%d;\n",lsz,rsz);
     return lsz == rsz;
 }
@@ -573,7 +567,7 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
                     //
                     sym->array_length = right.array_length;
                 }else {
-                    sym = lp_parser_add_variable(ctx,left,0,right.sym->type);
+                    sym = lp_parser_add_variable(ctx,left,0,right.type);
                     //sym->type = right->sym->type;
                     sym->ptr_depth = ptr_depth;
                     sym->array_length = right.array_length;
