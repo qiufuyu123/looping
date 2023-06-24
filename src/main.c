@@ -4,25 +4,26 @@
 #include<string.h>
 #include"lpvm.h"
 #include"lpcompiler.h"
-char buf[100];
+char *globuf=0;
 lpbool input(char **codes, lpsize *sz)
 {
-    memset(buf,0,100);
-    gets(buf);
-    *codes = buf;
-    *sz = strlen(buf)+1;
+    gets(globuf);
+    int len=strlen(globuf);
+    globuf[len]='\n';
+    globuf[len+1]='\0';
+    *codes = globuf;
+    *sz = len+1;
+    globuf+=len+1;
     return 1;
 }
 
 int main()
 {
     lp_vm_ctx ctx;
-    char *buf_stack = malloc(4096);
-    char *buf_heap = malloc(4096);
-    char *buf_codes = malloc(4096);
-    char *static_res = malloc(4096);
-    lp_vm_init(&ctx,buf_heap,4096,buf_stack,4096,
-     buf_codes,4096,static_res, 4096);
+    char *membuf = malloc(4096*4);//16k
+    globuf = malloc(1024);
+    lp_vm_init(&ctx,membuf,4096*4,0x1000,0x1000,
+     0x1000,0x1000);
     // buf_codes[0] = LOP_LOADc;
     // *(uint32_t*)(&buf_codes[1])=233;
     // buf_codes[5] = LOP_LOADcn;
@@ -44,7 +45,7 @@ int main()
     // lp_vm_start(&ctx,0);
     lp_compiler comp;
     // lp_compiler_init(&comp,&ctx,"let x:int = 2*3-7;let y:int = 2;struct s1{let x:int;let y:int};",64);
-    lp_compiler_init(&comp,&ctx,"int z =233;int w=z ; int ww=w;",30);
+    lp_compiler_init(&comp,&ctx,"int z =233,*y=&z;int w=z ; int ww=w;\n",30);
     comp.input_callback = input;
     lp_compiler_do(&comp);
 }

@@ -60,7 +60,9 @@ enum
 typedef struct
 {
     lptoken ttype;
-    lpsize col, row;
+    int col, row;
+    char *line_str;
+    int line_len;
     union
     {
         lpvmvalue v_int;
@@ -72,9 +74,10 @@ typedef struct
 typedef struct 
 {
     char *codes;
+    char *cur_line;
     lpsize max_size;
     lpsize cur_pos;
-    lpsize col,row;
+    int col,row;
 }lp_lex_code_buf;
 
 typedef struct 
@@ -132,6 +135,7 @@ typedef struct
         lpvmptr v_stackoffset;
         lpvmptr v_addr;
     };
+    int ptr_depth;
     lpsize array_length;
 }lp_parse_eval_value;
 
@@ -168,7 +172,7 @@ LP_Err lp_lexer_do(lp_compiler *ctx);
 
 LP_Err lp_compiler_codegen(lp_compiler *ctx);
 
-lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip);
+lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip,lpbool inc);
 
 void lp_lexer_back(lp_compiler *ctx);
 

@@ -1,6 +1,7 @@
 #ifndef _H_LPVM
 #define _H_LPVM
 #include"lpmem.h"
+#include "lptypes.h"
 
 typedef enum
 {
@@ -14,9 +15,11 @@ typedef enum
     LOP_LOADcn,
     LOP_LOADst, // load a const to static
     LOP_LEA,
-    LOP_SET_STACK,
-    LOP_SET_STACKN,
-    
+    LOP_POP_TO, // pop the stack top to stack
+
+    LOP_GETPTR,
+    LOP_DEPTR,
+
     LOP_ADD,
     LOP_MINUS,
     LOP_MUL,
@@ -83,6 +86,7 @@ typedef struct
 
 typedef struct 
 {
+    char *mem_start;
     lp_mem_ctx mem;
     lp_stack_ctx stack;
     lp_opcodes_ctx opcodes;
@@ -114,9 +118,9 @@ void* lp_array_remove(lp_vm_array *ctx, lpsize idx);
 
 void lp_array_clean(lp_vm_array *ctx);
 
-void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size, char *stack,
-                lpsize stack_size,char *codes, lpsize code_size, 
-                char *staticres, lpsize ressize);
+void lp_vm_init(lp_vm_ctx *ctx, char *mem,lpsize mem_size, lpsize heap_size,
+                lpsize stack_size,lpsize code_size, 
+                lpsize ressize);
 
 LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint);
 

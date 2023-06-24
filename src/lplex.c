@@ -14,12 +14,23 @@ char *lp_copy_str(char *str,lpsize len)
     return r;
 }
 
+int lp_linelen(char *str)
+{
+    int r = 0;
+    while (*str && *str!='\n') {
+        r++;
+    }
+    return r;
+}
+
 lp_lex_token *lp_new_token(lp_compiler *ctx, lptoken type, lpptrsize data)
 {
     lp_lex_token *r = lpmalloc(sizeof(lp_lex_token));
     lpnull(r);
     r->col = ctx->code_buf.col;
     r->row = ctx->code_buf.row;
+    r->line_str = ctx->code_buf.cur_line;
+    r->line_len = lp_linelen(r->line_str);
     r->ttype = type;
     r->v_str = (char*)data;
     return r;
@@ -30,6 +41,7 @@ char lp_nextc(lp_compiler *ctx)
     ctx->code_buf.col++;
     if(c == '\n')
     {
+        ctx->code_buf.cur_line = ctx->code_buf.codes+ctx->code_buf.cur_pos+1;
         ctx->code_buf.col = 0;
         ctx->code_buf.row ++;
     }
@@ -197,7 +209,7 @@ void lp_lexer_back(lp_compiler *ctx)
     ctx->token_table.bottom--;
 }
 
-lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip)
+lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip,lpbool inc)
 {
     lp_lex_token *r = lp_array_bottom(&ctx->token_table);
     while(!r)
@@ -215,6 +227,10 @@ lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip)
         lp_lexer_do(ctx);
         r = lp_array_bottom(&ctx->token_table);
     }
-    ctx->cur_token = r;
+    
+    if(!inc)
+        ctx->token_table.bottom--;
+    else
+        ctx->cur_token = r;
     return r;
 }

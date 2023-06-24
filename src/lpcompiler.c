@@ -9,6 +9,7 @@ void lp_compiler_init(lp_compiler *ctx,lp_vm_ctx* vmctx, char *codebuf, lpsize b
     ctx->code_buf.cur_pos = 0;
     ctx->code_buf.col = ctx->code_buf.row = 0;
     ctx->code_buf.max_size = bufsize;
+    ctx->code_buf.cur_line = ctx->code_buf.codes;
     lp_array_init(&ctx->symbol_table,64,64);
     lp_array_init(&ctx->token_table,64,64);
     lp_array_init(&ctx->type_table,64,64);

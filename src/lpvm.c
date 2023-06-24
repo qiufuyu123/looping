@@ -1,17 +1,19 @@
 #include "lpvm.h"
 #include"lperr.h"
 #include"lpmem.h"
+#include "lptypes.h"
 #include<stdio.h>
 #include<string.h>
 
-void lp_vm_init(lp_vm_ctx *ctx, char *heap, lpsize heap_size,
-                char *stack, lpsize stack_size, char *codes, lpsize code_size,
-                char *staticres, lpsize ressize)
+void lp_vm_init(lp_vm_ctx *ctx, char *mem,lpsize mem_size, lpsize heap_size,
+                lpsize stack_size,lpsize code_size, 
+                lpsize ressize)
 {
-    lp_msetup(&ctx->mem,heap_size,heap);
-    lp_vm_stack_init(&ctx->stack,stack,stack_size);
-    lp_vm_code_init(&ctx->opcodes,codes,code_size);
-    lp_vm_staticres_init(&ctx->sres, staticres, ressize);
+    ctx->mem_start = mem;
+    lp_msetup(&ctx->mem,heap_size,mem);
+    lp_vm_stack_init(&ctx->stack,mem+heap_size,stack_size);
+    lp_vm_code_init(&ctx->opcodes,mem+heap_size+stack_size,code_size);
+    lp_vm_staticres_init(&ctx->sres, mem+heap_size+stack_size+code_size, ressize);
     ctx->vm_flg = LVM_NORMAL;
     lpinfo("Vm inited!");
 
@@ -30,28 +32,6 @@ static void lp_vm_dump_stack(lp_vm_ctx *ctx)
     
 }
 
-#define _LP_VM_ARITH(op,v1,v2,dst)\
-    if(lp_vm_tresolve(ctx,lp_vm_nextop(ctx),&v1,&v2,&dst))\
-    {\
-        lpdebug("[VM] ArithOp: %d '%s' %d --> %x;\n",v1,#op,v2,dst); \
-        *dst = v1 op v2;\
-    }else\
-    {\
-        lpdebug("[VM] ArithOp: %d '%s' %d;\n",v1,#op,v2); \
-        v1 = v1 op v2;\
-        lp_vm_push(ctx,lpvmvalue,v1);\
-    }
-#define _LP_VM_ARITH_SINGLE(op,v1,dst)\
-    if(lp_vm_tresolve_single(ctx,lp_vm_nextop(ctx),&v1,&dst))\
-    {\
-        lpdebug("[VM] ArithOp: '%s' %d --> %x;\n",#op,v1,dst); \
-        *dst = op v1;\
-    }else\
-    {\
-        lpdebug("[VM] ArithOp: '%s' %d;\n",#op,v1); \
-        v1 = op v1;\
-        lp_vm_push(ctx,lpvmvalue,v1);\
-    }
 #define _LP_VM_ARITH_AUTO(code,op) case code:\
 val1=(lp_vm_pop(ctx,lpvmvalue)) op (lp_vm_pop(ctx,lpvmvalue));\
 lp_vm_push(ctx,lpvmvalue,val1); \
@@ -112,6 +92,26 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             lpdebug("[VM] Op: Pushs, offset:0x%x;\n",val1);
             lp_vm_push(ctx,lpvmvalue,*lp_vm_stackvisit(ctx,val1,1));
             lp_vm_dump_stack(ctx);
+            break;
+        case LOP_POP_TO:
+            val1 = lp_vm_nextop_value(ctx); // get offset of stack
+            lpdebug("[VM] Op: POP to, offset:0x%x;\n",val1);
+            pval1 = lp_vm_stackvisit(ctx, val1, 1);
+            *pval1 = *(lpvmvalue*)lp_vm_popc(ctx, 4);
+            break;
+        case LOP_GETPTR:
+            val1 = lp_vm_nextop_value(ctx);
+            lpdebug("[VM] Op: GetPtr of stack offset:0x%x;\n",val1);
+            pval1 = lp_vm_stackvisit(ctx, val1, 1);
+            val2 = (lpptrsize)pval1-(lpptrsize)ctx->mem_start;
+            lp_vm_push(ctx,lpvmvalue,val2);
+            break;
+        case LOP_DEPTR:
+            val1 = lp_vm_pop(ctx, lpvmvalue);
+            lpdebug("[VM] Op: DePtr of vaddr:0x%x;\n",val1);
+            pval1 = ctx->mem_start+val1;
+            val2 = *pval1;
+            lp_vm_push(ctx,lpvmvalue,val2);
             break;
         case LOP_NOP:
             break;
