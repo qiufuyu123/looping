@@ -19,6 +19,7 @@ int lp_linelen(char *str)
     int r = 0;
     while (*str && *str!='\n') {
         r++;
+        str++;
     }
     return r;
 }

@@ -36,6 +36,8 @@ static void lp_vm_dump_stack(lp_vm_ctx *ctx)
 val1=(lp_vm_pop(ctx,lpvmvalue)) op (lp_vm_pop(ctx,lpvmvalue));\
 lp_vm_push(ctx,lpvmvalue,val1); \
 lpdebug("[VM] BinOP!;\n");\
+sprintf(debugbuf, "OP,%s\n",#op);\
+debugasm;\
 break;
 #define _LP_VM_ARITH_AUTO_SINGLE(code,op) case code:\
 break;
@@ -53,10 +55,12 @@ lpvmptr lp_vm_from_raw_ptr(lp_vm_ctx *ctx, lpvmptr ptr)
     lpprintf(LPDERRO "Illegal memory access :0x%x\n",ptr);
     lppanic(LP_ILLEGAL_POINTER);
 }
-
+#define debugasm fwrite(debugbuf,strlen(debugbuf),1,fp);
 LP_Err lp_vm_continue(lp_vm_ctx *ctx)
 {
-    LP_Vm_Opcodes op = 0;
+    FILE *fp = fopen("asm_debug.txt", "a");
+    char debugbuf[50];
+    char op = 0;
     int stat = 0;
     while (stat >= 0)
     {
@@ -65,6 +69,12 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
         char cval1 = 0;
         lpvmptr vptr1 = 0;
         char op1 = 0, op2 = 0, op3 = 0;
+        lpbool notabs = 1;
+        if(op>64)
+        {
+            op -= 64;
+            notabs = 0;
+        }
         switch (op)
         {
         case LOP_LOADc:
@@ -72,32 +82,24 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             val1 = lp_vm_nextop_value(ctx);
             lpdebug("[VM] Op: LOADc, num:%d to stack\n",val1);
             lp_vm_push(ctx,lpvmvalue,val1);
-            break;
-        case LOP_LOADcn:
-            val1 = lp_vm_nextop_value(ctx); // get n
-            lpdebug("[VM] Op: LOADcn, num:%d:\n",val1);
-            for (int i = 0; i < val1; i++)
-            {
-                cval1 = lp_vm_nextop(ctx);
-                lp_vm_push(ctx,char,cval1);
-                lpdebug("[VM] Load a CONST: %d to stack;\n",cval1);
-            }
-            break;
-        case LOP_LOAD_STACKN:
-            val1 = lp_vm_nextop_value(ctx);
-            lp_vm_pushc(ctx,(char *)lp_vm_stackvisit(ctx,lp_vm_nextop_value(ctx),1),val1);
+            sprintf(debugbuf, "LOADc 0x%x\n",val1);
+            debugasm;
             break;
         case LOP_LOAD_STACK:
             val1 = lp_vm_nextop_value(ctx); // get offset of stack
             lpdebug("[VM] Op: Pushs, offset:0x%x;\n",val1);
-            lp_vm_push(ctx,lpvmvalue,*lp_vm_stackvisit(ctx,val1,1));
+            lp_vm_push(ctx,lpvmvalue,*lp_vm_stackvisit(ctx,val1,notabs));
             lp_vm_dump_stack(ctx);
+            sprintf(debugbuf, "LOADs(%d) 0x%x\n",notabs,val1);
+            debugasm;
             break;
         case LOP_POP_TO:
             val1 = lp_vm_nextop_value(ctx); // get offset of stack
             lpdebug("[VM] Op: POP to, offset:0x%x;\n",val1);
-            pval1 = lp_vm_stackvisit(ctx, val1, 1);
+            pval1 = lp_vm_stackvisit(ctx, val1, notabs);
             *pval1 = *(lpvmvalue*)lp_vm_popc(ctx, 4);
+            sprintf(debugbuf, "POPto(%d) 0x%x\n",notabs,val1);
+            debugasm;
             break;
         case LOP_GETPTR:
             val1 = lp_vm_nextop_value(ctx);
@@ -105,6 +107,8 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             pval1 = lp_vm_stackvisit(ctx, val1, 1);
             val2 = (lpptrsize)pval1-(lpptrsize)ctx->mem_start;
             lp_vm_push(ctx,lpvmvalue,val2);
+            sprintf(debugbuf, "GETPTR\n",val1);
+            debugasm;
             break;
         case LOP_DEPTR:
             val1 = lp_vm_pop(ctx, lpvmvalue);
@@ -112,6 +116,17 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             pval1 = ctx->mem_start+val1;
             val2 = *pval1;
             lp_vm_push(ctx,lpvmvalue,val2);
+            sprintf(debugbuf, "DEPTR\n",val1);
+            debugasm;
+            break;
+        case LOP_MEMSET:
+            val1 = lp_vm_pop(ctx, lpvmvalue); // val
+            val2 = lp_vm_pop(ctx, lpvmvalue); // dest
+            pval1 = (lpvmvalue*)(val2+ctx->mem_start);
+            *pval1 = val1;
+            lpdebug("[VM] Op: Memset of address:0x%x,as val:%x;\n",pval1,val1);
+            sprintf(debugbuf, "MEMSET\n",val1);
+            debugasm;
             break;
         case LOP_NOP:
             break;
@@ -141,6 +156,7 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
     }
     lpinfo("Vm end");
     lp_vm_dump_stack(ctx);
+    fclose(fp);
 }
 
 LP_Err lp_vm_start(lp_vm_ctx *ctx, lpptrsize entrypoint)

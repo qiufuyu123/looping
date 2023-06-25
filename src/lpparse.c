@@ -148,8 +148,8 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
         lpptrsize data = v->v_stackoffset;
         lpvmvalue len = v->array_length * v->type->root_type.occupy_bytes;
         lpdebug("Load:0x%x %d;\n",data,len);
-        lp_parser_push_op(ctx,LOP_LOAD_STACKN);
-        lp_bin_pushval(ctx->vm,len);
+        lp_parser_push_op(ctx,ctx->func_field?LOP_LOAD_STACK:LOP_GET_GLO);
+        //lp_bin_pushval(ctx->vm,len);
         lp_bin_pushval(ctx->vm,data);
             //ctx->stack_offset += len;
         //TODO: Multibytes load
@@ -158,16 +158,21 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
     
 }
 
-void lp_parser_gen_assigncode(lp_compiler *ctx, lp_parse_eval_value *left, lp_parse_eval_value *right)
+void lp_parser_gen_assigncode(lp_compiler *ctx, lp_parse_eval_value *left, lp_parse_eval_value *right,lpbool isptr)
 {
     lpdebug("Assign :%d --> %d\n",ctx->stack_offset,left->v_stackoffset);
     if(!right->is_loaded)
     {
         lp_parser_gen_loadcode(ctx,right);
     }
-    lp_parser_push_op(ctx,LOP_POP_TO);
-    //lp_bin_pushval(ctx->vm,right->type->root_type.occupy_bytes);
-    lp_bin_pushval(ctx->vm,left->v_stackoffset);
+    if(isptr)
+    {
+        lp_parser_push_op(ctx, LOP_MEMSET);
+    }else {
+        lp_parser_push_op(ctx,ctx->func_field?LOP_POP_TO:LOP_SET_GLO);
+        //lp_bin_pushval(ctx->vm,right->type->root_type.occupy_bytes);
+        lp_bin_pushval(ctx->vm,left->v_stackoffset);
+    }
     //lp_bin_pushval(ctx->vm,ctx->stack_offset);
     
 
@@ -253,7 +258,7 @@ static void lp_parser_print_val(lp_parse_eval_value *v)
 
 void lp_parser_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode);
 
-void lp_parser_left_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
+void lp_parser_right_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
 {
     lpbool is_deptr = 0;
     if(ctx->cur_token->ttype == LPT_ADDRESS)
@@ -305,7 +310,7 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
     lp_lex_token *t = lp_nexttoken;
     if(t->ttype == LPT_NUMBER)
     {
-        lp_new_eval_val(r,&lp_builtin_types[LPCT_INT],t->v_int,0);
+        lp_new_eval_val(r,&lp_builtin_types[LPBT_INT],t->v_int,0);
     }else if(t->ttype == LPT_ADD)
     {
         lp_parser_expr_factor(ctx,r,gencode);
@@ -327,7 +332,7 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
     {
         //TODO: realize array visiting
         //lp_parser_gen_loadcode(ctx,v);
-        lp_parser_left_eval(ctx,r,gencode);
+        lp_parser_right_eval(ctx,r,gencode);
         t = lp_nexttoken_skipable;
         if(t)
         {
@@ -408,6 +413,34 @@ void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode
     else
     {
         LP_ERR("Bad Expression Format!",*t);
+    }
+}
+
+void lp_parser_left_eval(lp_compiler *ctx, lp_parse_eval_value *r,lpbool *isptr)
+{
+    int brk_match = 0;
+    *isptr = 0;
+    while(ctx->cur_token->ttype == LPT_LEFT_PAREN)
+    {
+        brk_match++;
+        lp_nexttoken;
+    }
+    if(ctx->cur_token->ttype == LPT_MUL)
+    {
+        // assign to a pointer
+        *isptr = 1;
+    }
+    //lp_lexer_back(ctx);
+    lp_parser_expr_factor(ctx, r, *isptr);
+    if(!r->is_var)
+    {
+        LP_ERR("Cannot assign value to a constant", *ctx->cur_token);
+    }
+    while (brk_match--) {
+        if(lp_nexttoken->ttype != LPT_RIGHT_PAREN)
+        {
+            LP_ERR("Right-Paren ')' does not match", *ctx->cur_token);
+        }
     }
 }
 
@@ -595,54 +628,18 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
         }
 
     }
-    else if(root_t->ttype == LPT_KW_STRUCT)
+    else if(root_t->ttype == LPT_NUMBER)
     {
-        lp_lex_token *root_name = lp_nexttoken;
-        lp_parser_match(root_name,LPT_WORDS);
-        lp_parser_match(lp_nexttoken,LPT_LEFT_CURLY);
-        lp_lex_token *t = lp_nexttoken;
-        // Build a structure type
-        lp_parse_structed_type *new_type = lp_new_structed_type_root(root_name);
-        lpsize cur_offset = 0;
-        while (t->ttype!=LPT_RIGHT_CURLY)
-        {
-            lp_parser_match(t,LPT_KW_LET);
-            lp_lex_token *name = lp_nexttoken;
-            lp_parser_match(name,LPT_WORDS);
-            lp_parser_match(lp_nexttoken,LPT_COLON);
-            lp_lex_token *type = lp_nexttoken;
-            lp_parser_match(type,LPT_WORDS);
-            //lpdebug("match inner type...");
-            lp_parse_structed_type *inner_type = lp_parser_get_type(ctx,type);
-            //lpdebug("[%s]",inner_type->root_type.builtin_name);
-            if(!inner_type)
-            {
-                LP_ERR("Unknown Type!\n",*type);
-            }
-            lp_parse_symbol *sym = lp_new_symbol(ctx,inner_type,name,0);
-            if(!sym)
-            {
-                LP_ERR("Fail to create a symbol for structure!",*type);
-            }
-            sym->stack_offset = cur_offset;
-            //lp_array_push(&new_type->inner_types,sym);
-            cur_offset += inner_type->root_type.occupy_bytes;
-            lpdebug("[PARSER]: Add a symbol: %s, type:%s to struct:%s offset:%d;\n",sym->words->v_str,inner_type->root_type.builtin_name,new_type->root_type.words->v_str,sym->stack_offset);
-            t=lp_nexttoken;
-            if(t->ttype == LPT_SEMICOLON)
-            {
-                t = lp_nexttoken;
-            }
-        }
-        new_type->root_type.occupy_bytes = cur_offset;
-        lpdebug("Create a structure:%s size:%d;\n",new_type->root_type.words->v_str,new_type->root_type.occupy_bytes);
-        lp_array_push(&ctx->type_table,new_type);
+        lp_lexer_back(ctx);
+        lp_parse_eval_value left;
+        lp_parser_root_expr(ctx,&left,0);
+        lp_parser_print_val(&left);
     }
-    else if(root_t->ttype == LPT_WORDS)
-    {
+    else {
         lp_parse_eval_value left;
         //lp_lexer_back(ctx);
-        lp_parser_left_eval(ctx,&left,0);
+        lpbool isptr = 0;
+        lp_parser_left_eval(ctx,&left,&isptr);
         lp_parser_match(lp_nexttoken,LPT_EQ);
         lp_parse_eval_value right;
         lp_parser_root_expr(ctx,&right,0);
@@ -650,16 +647,8 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
         {
             LP_ERR("Unmatched type.", *root_t);
         }
-        lp_parser_gen_assigncode(ctx,&left,&right);
-        lpdebug("Assign a var;\n");
-        
-    }
-    else if(root_t->ttype == LPT_NUMBER)
-    {
-        lp_lexer_back(ctx);
-        lp_parse_eval_value left;
-        lp_parser_root_expr(ctx,&left,0);
-        lp_parser_print_val(&left);
+        lp_parser_gen_assigncode(ctx,&left,&right,isptr);
+        lpdebug("Assign a var(isptr:%d);\n",isptr);
     }
     lp_parser_match(lp_nexttoken,LPT_SEMICOLON);
     if(ctx->interpret_mode)

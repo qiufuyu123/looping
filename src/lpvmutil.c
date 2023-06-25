@@ -56,15 +56,15 @@ void *lp_vm_popc(lp_vm_ctx *ctx, lpptrsize size)
     return p;
 }
 
-lpvmvalue *lp_vm_stackvisit(lp_vm_ctx *ctx, lpvmvalue offset, lpbool is_ebp_based)
+lpvmvalue *lp_vm_stackvisit(lp_vm_ctx *ctx, lpvmvalue offset, lpbool notabs)
 {
-    if(is_ebp_based)
+    if(notabs)
     {
         return (lpvmvalue*)(((char*)ctx->stack.ebp)+ offset);
     }
     else
     {
-        return (lpvmvalue*)(((char*)ctx->stack.esp)+ offset);
+        return (lpvmvalue*)(((char*)ctx->stack.stacks)+ offset);
     }
 }
 

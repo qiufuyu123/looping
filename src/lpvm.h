@@ -10,15 +10,14 @@ typedef enum
     LOP_NOP,
 
     LOP_LOAD_STACK,
-    LOP_LOAD_STACKN,
     LOP_LOADc,
-    LOP_LOADcn,
-    LOP_LOADst, // load a const to static
-    LOP_LEA,
     LOP_POP_TO, // pop the stack top to stack
+
+
 
     LOP_GETPTR,
     LOP_DEPTR,
+    LOP_MEMSET,
 
     LOP_ADD,
     LOP_MINUS,
@@ -35,7 +34,10 @@ typedef enum
     LOP_GRT,
     LOP_LESS,
     LOP_GRT_EQ,
-    LOP_LESS_EQ
+    LOP_LESS_EQ,
+
+    LOP_GET_GLO = LOP_LOAD_STACK + 64,
+    LOP_SET_GLO = LOP_POP_TO + 64,
 }LP_Vm_Opcodes;
 
 

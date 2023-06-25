@@ -44,8 +44,10 @@ int main()
     // *(uint32_t*)(&buf_codes[43])=0;
     // lp_vm_start(&ctx,0);
     lp_compiler comp;
+    FILE *fp = fopen("asm_debug.txt", "w");
+    fclose(fp);
     // lp_compiler_init(&comp,&ctx,"let x:int = 2*3-7;let y:int = 2;struct s1{let x:int;let y:int};",64);
-    lp_compiler_init(&comp,&ctx,"int z =233,*y=((int*)&z);int w=z ; int ww=w;\n",44);
+    lp_compiler_init(&comp,&ctx,"int z =233,*y=((int*)&z);int w=z ; int ww=w;\n",46);
     comp.input_callback = input;
     lp_compiler_do(&comp);
 }
