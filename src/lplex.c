@@ -1,6 +1,7 @@
 #include"lpcompiler.h"
 #include"lperr.h"
 #include "lptypes.h"
+#include "lpvm.h"
 #include<ctype.h>
 #include<string.h>
 #include<stdlib.h>
@@ -100,6 +101,10 @@ lptoken lp_analyze_split(char c)
         return LPT_LEFT_CURLY;
     else if(c == '}')
         return LPT_RIGHT_CURLY;
+    else if(c == '|')
+        return LPT_OR;
+    else if(c == '~')
+        return LPT_NEG;
     return LPT_NULL;
 
 }
@@ -186,7 +191,24 @@ LP_Err lp_lexer_do(lp_compiler *ctx)
             {
                 LEX_ERR("Unexcepted Split Symbol!");
             }
-            lp_array_push(&ctx->token_table,lp_new_token(ctx,tk,0));
+            lp_lex_token *tk2 = (lp_lex_token*)lp_array_top(&ctx->token_table);
+            if(tk == tk2->ttype)
+            {
+                if(tk == LPT_ADDRESS)
+                    tk2->ttype = LPT_LAND;
+                else if(tk == LPT_OR)
+                    tk2->ttype = LPT_LOR;
+                else if(tk == LPT_EQ)
+                    tk2->ttype = LPT_EQEQ;
+                else if(tk == LPT_LESS)
+                    tk2->ttype = LPT_LSL;
+                else if(tk == LPT_GREAT)
+                    tk2->ttype = LPT_LSR;
+                else
+                    lp_array_push(&ctx->token_table,lp_new_token(ctx,tk,0));
+            }
+            else
+                lp_array_push(&ctx->token_table,lp_new_token(ctx,tk,0));
         }
     }
     lp_lexer_dump(ctx);
@@ -208,6 +230,7 @@ static void lp_lexer_expand_codes(lp_compiler *ctx, char *codes, lpsize sz)
 void lp_lexer_back(lp_compiler *ctx)
 {
     ctx->token_table.bottom--;
+    //ctx->cur_token = lp_array_bottom(&ctx->token_table);
 }
 
 lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip,lpbool inc)
@@ -234,4 +257,32 @@ lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip,lpbool inc)
     else
         ctx->cur_token = r;
     return r;
+}
+int lp_parser_priority(lp_lex_token t)
+{
+    lptoken tk = t.ttype;
+    if(tk == LPT_LSL || tk == LPT_LSR)
+        return  LPP_BIT_SHIFT;
+    else if(tk == LPT_LESS || tk == LPT_GREAT)
+        return LPP_COMP;
+    else if(tk == LPT_EQEQ)
+        return  LPP_EQNEQ;
+    else if(tk == LPT_ADDRESS)
+        return  LPP_BIT_AND;
+    else if(tk == LPT_POWER)
+        return  LPP_BIT_XOR;
+    else if(tk == LPT_OR)
+        return  LPP_BIT_OR;
+    else if(tk == LPT_LAND)
+        return  LPP_LOGIC_AND;
+    else if(tk == LPT_LOR)
+        return  LPP_LOGIC_OR;
+    else if(tk == LPT_EQ)
+        return  LPP_ASSIGN;
+    else if(tk == LPT_ADD || tk == LPT_MINUS)
+        return LPP_ADD;
+    else if(tk == LPT_MUL || tk == LPT_DIV)
+        return LPP_MUL;
+    else
+        return LPP_NULL;
 }

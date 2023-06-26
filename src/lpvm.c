@@ -33,12 +33,15 @@ static void lp_vm_dump_stack(lp_vm_ctx *ctx)
 }
 
 #define _LP_VM_ARITH_AUTO(code,op) case code:\
-val1=(lp_vm_pop(ctx,lpvmvalue)) op (lp_vm_pop(ctx,lpvmvalue));\
+val2=(lp_vm_pop(ctx,lpvmvalue));\
+val1=(lp_vm_pop(ctx,lpvmvalue));\
+val1=val1 op val2;\
 lp_vm_push(ctx,lpvmvalue,val1); \
 lpdebug("[VM] BinOP!;\n");\
 sprintf(debugbuf, "OP,%s\n",#op);\
 debugasm;\
-break;
+break;\
+
 #define _LP_VM_ARITH_AUTO_SINGLE(code,op) case code:\
 break;
 

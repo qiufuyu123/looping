@@ -114,6 +114,8 @@ void lp_array_push(lp_vm_array *ctx, char *data);
 void* lp_array_get(lp_vm_array *ctx, lpsize idx);
 #define lp_array_getv(ctx,idx,type) *(type*)(lp_array_get(ctx,idx))
 
+void *lp_array_top(lp_vm_array *ctx);
+
 void* lp_array_bottom(lp_vm_array *ctx);
 
 void* lp_array_remove(lp_vm_array *ctx, lpsize idx);

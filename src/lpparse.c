@@ -66,6 +66,7 @@ void lp_new_eval_val(lp_parse_eval_value *r,lp_parse_structed_type *type, lpvmpt
     r->array_length = 1;
     r->is_loaded = 0;
     r->ptr_depth = 0;
+    r->is_deptred = 0;
     //return r;
 }
 
@@ -255,43 +256,6 @@ static void lp_parser_print_val(lp_parse_eval_value *v)
     }
     lpdebug("Type:%d,Number:%d,Addr:0x%x\n",v->type,v->v_number,v->v_addr);
 }
-
-void lp_parser_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode);
-
-void lp_parser_right_eval(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
-{
-    lpbool is_deptr = 0;
-    if(ctx->cur_token->ttype == LPT_ADDRESS)
-    {
-        is_deptr = 1;
-        lp_nexttoken;
-    }
-    lp_parse_symbol *sym = lp_parser_lookup_var(ctx,ctx->cur_token);
-    if(!sym)
-    {
-        LP_ERR("Unknown Variable Name!",*ctx->cur_token);
-    }
-    lpdebug("[EVAL] : A variable;\n");
-    lp_new_eval_val(r,sym->type,sym->stack_offset,0); 
-    r->is_var = 1;
-    r->ptr_depth = sym->ptr_depth;
-    r->v_stackoffset = sym->stack_offset;
-    r->array_length = sym->array_length;
-    if(gencode && !is_deptr)
-        lp_parser_gen_loadcode(ctx,r);
-    if(is_deptr)
-    {
-        if(!r->is_var)
-        {
-            LP_ERR("Unable to assign a pointer to a non-variable", *ctx->cur_token);
-        }
-        lp_parser_push_op(ctx, LOP_GETPTR);
-        lp_vm_op_push(ctx->vm, &r->v_stackoffset, 4);
-        r->ptr_depth++;
-        r->is_loaded = 1;
-    }
-}
-
 int lp_parse_ptrdepth(lp_compiler *ctx)
 {
     int r=0;
@@ -299,149 +263,6 @@ int lp_parse_ptrdepth(lp_compiler *ctx)
         r++;
     }
     return r;
-}
-
-void lp_parser_expr_factor(lp_compiler *ctx,lp_parse_eval_value*r,lpbool gencode)
-{
-    // constant
-    // -/+
-    // (
-    // leftvalue
-    lp_lex_token *t = lp_nexttoken;
-    if(t->ttype == LPT_NUMBER)
-    {
-        lp_new_eval_val(r,&lp_builtin_types[LPBT_INT],t->v_int,0);
-    }else if(t->ttype == LPT_ADD)
-    {
-        lp_parser_expr_factor(ctx,r,gencode);
-    }else if(t->ttype == LPT_MINUS)
-    {
-        lp_parser_expr_factor(ctx,r,gencode);
-        if(!r->is_var)
-            r->v_number = -r->v_number;
-        else
-        {
-            lpvmvalue tmp = 0;
-            lp_parser_push_op(ctx,LOP_LOADc);
-            lp_bin_pushval(ctx->vm,tmp);
-            lpdebug("[OP] Get Minus;\n");
-            lp_parser_gen_loadcode(ctx,r);
-            lp_parser_push_op(ctx,LOP_MINUS);
-        }
-    }else if(t->ttype == LPT_WORDS || (t->ttype == LPT_ADDRESS && lp_forwardtoken->ttype == LPT_WORDS))
-    {
-        //TODO: realize array visiting
-        //lp_parser_gen_loadcode(ctx,v);
-        lp_parser_right_eval(ctx,r,gencode);
-        t = lp_nexttoken_skipable;
-        if(t)
-        {
-            if(t->ttype == LPT_LEFT_BRACKET)
-            {
-                // index of array
-                t = lp_nexttoken;
-                lp_parser_match(t,LPT_NUMBER);
-                lpsize index = t->v_int;
-                if(index >= r->array_length)
-                {
-                    //LP_ERR("",t)
-                }
-            }else {
-                lp_lexer_back(ctx);
-            }
-        }
-    }
-    else if(t->ttype == LPT_LEFT_PAREN)
-    {
-        lp_parse_structed_type* tp = 0;
-        int ptr_depth = 0;
-        lp_lex_token *nxt = lp_forwardtoken;
-        if(nxt->ttype == LPT_WORDS)
-        {
-            // perhaps type-converter?
-            tp = lp_parser_get_type(ctx, nxt);
-            if(tp)
-            {
-                lp_nexttoken;
-                ptr_depth = lp_parse_ptrdepth(ctx);
-                lp_parser_match(ctx->cur_token, LPT_RIGHT_PAREN);
-            }
-        }
-        lp_parser_expr(ctx,r,gencode);
-        
-        if(tp)
-        {
-            // Now force to convert the type
-            r->type = tp;
-            r->array_length = 1; // TODO: Realize array
-            r->ptr_depth = ptr_depth;
-        }else {
-            lp_parser_match(lp_nexttoken,LPT_RIGHT_PAREN);
-        }
-    }
-    else if(t->ttype == LPT_STRING)
-    {
-        lp_new_eval_val(r,&lp_builtin_types[LPBT_STR],t->v_str,0);
-        r->array_length = strlen(t->v_str)+1;
-        lp_parser_gen_loadcode(ctx,r);
-    }
-    else if(t->ttype == LPT_MUL)
-    {
-        // de-pointer
-        lp_parser_expr_factor(ctx, r, 1);
-        if(!r->is_var)
-        {
-            lp_parser_gen_loadcode(ctx, r);
-            //lp_parser_push_op(ctx, LOP_DEPTR);
-            //lp_vm_op_push(ctx->vm, &ctx->stack_offset, 4);
-            // may be direct address?
-        }
-        else {
-            // Since we already generate the load code
-            // we do not need to do anything here
-            if(!r->ptr_depth)
-            {
-                LP_ERR("Cannot resolve a variable as a pointer!", *ctx->cur_token);
-            }
-            r->ptr_depth--;
-        }
-        lp_parser_push_op(ctx, LOP_DEPTR);
-        lpdebug("[PARSER] Deptr(%d level);\n",r->ptr_depth);
-        r->is_loaded = 1;
-
-    }
-    else
-    {
-        LP_ERR("Bad Expression Format!",*t);
-    }
-}
-
-void lp_parser_left_eval(lp_compiler *ctx, lp_parse_eval_value *r,lpbool *isptr)
-{
-    int brk_match = 0;
-    *isptr = 0;
-    while(ctx->cur_token->ttype == LPT_LEFT_PAREN)
-    {
-        brk_match++;
-        lp_nexttoken;
-    }
-    if(ctx->cur_token->ttype == LPT_MUL)
-    {
-        // assign to a pointer
-        *isptr = 1;
-    }
-    //lp_lexer_back(ctx);
-    lp_parser_expr_factor(ctx, r, *isptr);
-    if(!r->is_var)
-    {
-        LP_ERR("Cannot assign value to a constant", *ctx->cur_token);
-    }
-    while (brk_match--) {
-        if(lp_nexttoken->ttype != LPT_RIGHT_PAREN)
-        {
-            LP_ERR("Right-Paren ')' does not match", *ctx->cur_token);
-        }
-    }
 }
 
 lp_parse_eval_value *lp_parser_const_op(lp_parse_eval_value *left, lp_parse_eval_value *right,lp_lex_token *op)
@@ -457,99 +278,6 @@ lp_parse_eval_value *lp_parser_const_op(lp_parse_eval_value *left, lp_parse_eval
     return left;
 }
 
-void lp_parser_expr_term(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
-{
-    lp_parse_eval_value left_val;
-    lp_parser_expr_factor(ctx,&left_val,gencode);
-    lp_lex_token *op = lp_nexttoken_skipable;
-    if(!op)
-    {
-        *r = left_val;
-        return;
-    }
-    while (op->ttype == LPT_MUL || op->ttype == LPT_DIV)
-    {
-        lp_parse_eval_value right_val;
-        lp_parser_expr_factor(ctx,&right_val,gencode);
-        if((!left_val.is_var) && (!left_val.is_var))
-        {
-            left_val = *lp_parser_const_op(&left_val,&right_val,op);
-        }else
-        {
-            lp_parser_gen_loadcode(ctx,&left_val);
-            lp_parser_gen_loadcode(ctx,&right_val);
-            lp_parser_gen_binopcode(ctx,*op);
-        }
-        op = lp_nexttoken_skipable;   
-        if(!op)
-        {
-            *r = left_val;
-            return;
-        }
-    }
-    lp_lexer_back(ctx);
-    *r=left_val;
-    return;
-    
-}
-
-void lp_parser_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gencode)
-{
-    lp_parse_eval_value left_val;
-    lp_parser_expr_term(ctx,&left_val,gencode);
-    lp_lex_token *op = lp_nexttoken_skipable;
-    if(!op)
-    {
-        *r = left_val;
-        return;
-    }
-    while (op->ttype == LPT_ADD || op->ttype == LPT_MINUS)
-    {
-        lp_parse_eval_value right_val;
-        lp_parser_expr_term(ctx,&right_val,gencode);
-        if((!left_val.is_var) && (!left_val.is_var))
-        {
-            left_val = *lp_parser_const_op(&left_val,&right_val,op);
-        }else
-        {
-            lp_parser_gen_loadcode(ctx,&left_val);
-            lp_parser_gen_loadcode(ctx,&right_val);
-            // Mark this two value as ALREADY generated codes
-            //
-
-            lp_parser_gen_binopcode(ctx,*op);
-        }
-        op = lp_nexttoken_skipable;   
-        if(!op)
-        {
-            *r = left_val;
-            return;
-        };
-    }
-    lp_lexer_back(ctx);
-    *r = left_val;
-}
-
-void lp_parser_root_expr(lp_compiler *ctx,lp_parse_eval_value *r,lpbool gen_load_in_const)
-{
-    lp_parser_expr(ctx,r,gen_load_in_const);
-    // Generate IL codes;
-    if(!r->is_loaded && gen_load_in_const)
-    {
-        
-        lp_parser_gen_loadcode(ctx,r);
-    }
-}
-
-// lp_parse_structed_type *lp_parser_get_type(lp_parse_eval_value *v)
-// {
-//     if(v->const_type)
-//         return v->type;
-//     return v->sym->type;
-// }
-
-
-
 lpbool lp_parser_raw_typechk(lp_parse_eval_value left,lp_parse_eval_value right)
 {
     lpvmvalue lsz=0,rsz=0;
@@ -563,6 +291,248 @@ lpbool lp_parser_raw_typechk(lp_parse_eval_value left,lp_parse_eval_value right)
         rsz = right.type->root_type.occupy_bytes * right.array_length;
     lpdebug("[PARSER] Raw type check:left:%d,right:%d;\n",lsz,rsz);
     return lsz == rsz;
+}
+
+int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpbool gencode)
+{
+    // unit-op always has the highest priority.
+    //lp_lex_token *tk = lp_nexttoken;
+    //lp_parse_eval_value left;
+    lp_parse_eval_value right;
+    lpbool isptr = 0;
+    //lp_parser_left_eval(ctx, r, &isptr);
+    lptoken t = ctx->cur_token->ttype;
+    lp_lex_token *tk = ctx->cur_token;
+    if(t == LPT_NUMBER)
+    {
+        lp_new_eval_val(r, &lp_builtin_types[LPBT_INT], tk->v_int,0);
+        //lp_parser_gen_loadcode(ctx, r);
+    }else if(t == LPT_ADD)
+    {
+        lp_nexttoken;
+        lp_parser_expression(ctx, r, level,gencode);
+    }else if(t == LPT_MINUS)
+    {
+        lp_nexttoken;
+        lp_parser_expression(ctx, r, level,gencode);
+        if(!r->is_var)
+            r->v_number = -r->v_number;
+        else
+        {
+            lpvmvalue tmp = 0;
+            lp_parser_push_op(ctx,LOP_LOADc);
+            lp_bin_pushval(ctx->vm,tmp);
+            lpdebug("[OP] Get Minus;\n");
+            lp_parser_gen_loadcode(ctx,r);
+            lp_parser_push_op(ctx,LOP_MINUS);
+        }
+    }else if(t == LPT_ADDRESS)
+    {
+        lp_nexttoken;
+        lp_parser_expression(ctx, r, level,0);
+        if(!r->is_var)
+        {
+            LP_ERR("Cannot get address of a constant!",*ctx->cur_token);
+        }
+        lp_parser_push_op(ctx, LOP_GETPTR);
+        lp_vm_op_push(ctx->vm, &r->v_stackoffset, 4);
+        r->ptr_depth++;
+        r->is_loaded = 1;
+    }else if(t == LPT_MUL)
+    {
+        lp_nexttoken;
+        lp_parser_expression(ctx, r, LPP_LOW, 1);
+        if(r->is_var)
+        {
+            if(!r->ptr_depth)
+            {
+                LP_ERR("Cannot resolve a variable as a pointer", *ctx->cur_token);
+            }else {
+                r->ptr_depth --;
+            }
+        }
+        lp_parser_push_op(ctx, LOP_DEPTR);
+        isptr=1;
+    }
+    else if(t == LPT_LEFT_PAREN)
+    {
+        lp_parse_structed_type *tp = 0;
+        int ptr_depth = 0;
+        lp_lex_token *nxt = lp_forwardtoken;
+        if(nxt->ttype == LPT_WORDS)
+        {
+            // perhaps type-converter?
+            tp = lp_parser_get_type(ctx, nxt);
+            if(tp)
+            {
+                lp_nexttoken;
+                ptr_depth = lp_parse_ptrdepth(ctx);
+                lp_parser_match(ctx->cur_token, LPT_RIGHT_PAREN);
+            }
+        }  
+        lp_nexttoken;
+        lp_parser_expression(ctx, r, LPP_ASSIGN, gencode);
+        if(tp)
+        {
+            r->type = tp;
+            r->array_length = 1;
+            r->ptr_depth = ptr_depth;
+        }else {
+            lp_parser_match(lp_nexttoken, LPT_RIGHT_PAREN);
+        }
+    }else if(t == LPT_WORDS){
+        lp_parse_symbol *sym= lp_parser_lookup_var(ctx, ctx->cur_token);
+        if(!sym)
+        {
+            LP_ERR("Unknown variable name!", *ctx->cur_token);
+        }
+        lp_new_eval_val(r, sym->type, sym->stack_offset, 1);
+        r->array_length = sym->array_length;
+        r->ptr_depth = sym->ptr_depth;
+        if(gencode)
+            lp_parser_gen_loadcode(ctx, r);
+    }
+    int prio = 0,rprio=0;
+    while (level <= (prio=lp_parser_priority(*lp_nexttoken))) {
+        
+        // if(prio ==LPP_ASSIGN)
+        // {
+        //     if(r->is_deptred)
+        //     {
+        //         ctx->vm->opcodes.codes_end--;
+        //         //erase the last DEPTR OPCODE
+        //     }
+        //     lp_parser_expression(ctx, &right, level-1,gencode);
+        // }
+        if(prio == LPP_ASSIGN)
+        {
+            lp_nexttoken;
+            if(isptr)
+                ctx->vm->opcodes.codes_end--;
+            lp_parser_expression(ctx, &right, LPP_ASSIGN, gencode);
+            if(!lp_parser_raw_typechk(*r,right))
+            {
+                LP_ERR("Unmatched type", *ctx->cur_token);
+            }
+            lp_parser_gen_assigncode(ctx, r, &right, isptr);
+        }
+        else if(prio == LPP_BIT_SHIFT)
+        {
+            if(!right.is_var && !r->is_var)
+            {
+                if(t == LPT_LSL)
+                    r->v_number = r->v_number << right.v_number;
+                else 
+                    r->v_number = r->v_number >> right.v_number;
+            }else {
+            
+            }
+        }
+        else if(prio == LPP_COMP)
+        {
+            if(!right.is_var && !r->is_var)
+            {
+                if(t == LPT_LESS)
+                    r->v_number = (r->v_number < right.v_number);
+                else if(t == LPT_GREAT)
+                    r->v_number = (r->v_number > right.v_number);
+            }else {
+            
+            }
+        }
+        else if(prio == LPP_EQNEQ)
+        {
+            if(!right.is_var && !r->is_var)
+            {
+                if(t == LPT_EQEQ)
+                    r->v_number = (r->v_number == right.v_number);
+                else 
+                    r->v_number = (r->v_number != right.v_number);
+            }else {
+            
+            }
+        }
+        else if(prio == LPP_BIT_AND)
+        {
+            if(!right.is_var && !r->is_var)
+            {
+                r->v_number = r->v_number & right.v_number;
+            }else {
+            
+            }
+        }
+        else if(prio == LPP_BIT_XOR)
+        {
+            if(!right.is_var && !r->is_var)
+            {
+                r->v_number = r->v_number ^ right.v_number;
+            }else {
+            
+            }
+        }
+        else if(prio == LPP_BIT_OR)
+        {
+            if(!right.is_var && !r->is_var)
+            {
+                r->v_number = r->v_number | right.v_number;
+            }else {
+            
+            }
+        }
+        else if(prio == LPP_LOGIC_AND){
+            if(!right.is_var && !r->is_var)
+            {
+                r->v_number = r->v_number && right.v_number;
+            }else {
+            
+            }
+        }else if(prio == LPP_LOGIC_OR){
+            if(!right.is_var && !r->is_var)
+            {
+                r->v_number = r->v_number || right.v_number;
+            }else {
+            
+            }
+        }else if(prio == LPP_ADD)
+        {
+            lp_lex_token *op = ctx->cur_token;
+            lp_nexttoken;
+            lp_parser_expression(ctx, &right, LPP_ADD+1, 1);
+            if(!right.is_var && !r->is_var)
+            {
+                if(op->ttype == LPT_ADD)
+                    r->v_number = r->v_number + right.v_number;
+                else
+                    r->v_number = r->v_number - right.v_number;
+            }else {
+                lp_parser_gen_loadcode(ctx, r);
+                lp_parser_gen_loadcode(ctx, &right);
+                lp_parser_gen_binopcode(ctx,*op);
+            }
+        }else if(prio == LPP_MUL)
+        {
+            lp_lex_token *op = ctx->cur_token;
+            lp_nexttoken;
+            lp_parser_expression(ctx, &right, LPP_MUL+1, 1);
+            if(!right.is_var && !r->is_var)
+            {
+                if(op->ttype == LPT_MUL)
+                    r->v_number = r->v_number * right.v_number;
+                else
+                    r->v_number = r->v_number / right.v_number;
+            }else {
+                lp_parser_gen_loadcode(ctx, r);
+                lp_parser_gen_loadcode(ctx, &right);
+                lp_parser_gen_binopcode(ctx,*op);
+            }
+        }
+        else {
+            LP_ERR("Unknonw binary op", *ctx->cur_token);
+        }
+        rprio = prio;
+    }
+    lp_lexer_back(ctx);
+    return rprio;
 }
 
 LP_Err lp_parser_statment(lp_compiler *ctx)
@@ -587,8 +557,9 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
             lp_parse_symbol * sym;
             if(nxt->ttype == LPT_EQ)
             {
-                
-                lp_parser_root_expr(ctx,&right, 1);
+                lp_nexttoken;
+                lp_parser_expression(ctx,&right, LPP_ASSIGN,1);
+                lp_parser_gen_loadcode(ctx, &right);
                 if(!right.is_var)
                 {
                     if(ptr_depth)
@@ -628,27 +599,25 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
         }
 
     }
-    else if(root_t->ttype == LPT_NUMBER)
-    {
-        lp_lexer_back(ctx);
-        lp_parse_eval_value left;
-        lp_parser_root_expr(ctx,&left,0);
-        lp_parser_print_val(&left);
-    }
     else {
         lp_parse_eval_value left;
-        //lp_lexer_back(ctx);
-        lpbool isptr = 0;
-        lp_parser_left_eval(ctx,&left,&isptr);
-        lp_parser_match(lp_nexttoken,LPT_EQ);
-        lp_parse_eval_value right;
-        lp_parser_root_expr(ctx,&right,0);
-        if(!lp_parser_raw_typechk(left, right))
+        // //lp_lexer_back(ctx);
+        // lpbool isptr = 0;
+        // lp_parser_left_eval(ctx,&left,&isptr);
+        // lp_parser_match(lp_nexttoken,LPT_EQ);
+        // lp_parse_eval_value right;
+        // lp_parser_expression(ctx,&right,LPP_ASSIGN,1);
+        // lp_lexer_back(ctx);
+        // if(!lp_parser_raw_typechk(left, right))
+        // {
+        //     LP_ERR("Unmatched type.", *root_t);
+        // }
+        // lp_parser_gen_assigncode(ctx,&left,&right,isptr);
+        // lpdebug("Assign a var(isptr:%d);\n",isptr);
+        if(lp_parser_expression(ctx, &left, LPP_ASSIGN,0)!=LPP_ASSIGN)
         {
-            LP_ERR("Unmatched type.", *root_t);
+            LP_ERR("Unknown statement, expect a expression", *root_t);
         }
-        lp_parser_gen_assigncode(ctx,&left,&right,isptr);
-        lpdebug("Assign a var(isptr:%d);\n",isptr);
     }
     lp_parser_match(lp_nexttoken,LPT_SEMICOLON);
     if(ctx->interpret_mode)

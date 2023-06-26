@@ -165,6 +165,11 @@ void *lp_array_get(lp_vm_array *ctx, lpsize idx)
     return ctx->data[idx];
 }
 
+void *lp_array_top(lp_vm_array *ctx)
+{
+    return  ctx->data[ctx->top-1];
+}
+
 void *lp_array_bottom(lp_vm_array *ctx)
 {
     if(ctx->bottom >= ctx->top)

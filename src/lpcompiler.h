@@ -50,7 +50,31 @@ enum
     LPT_RIGHT_BRACKET,
     LPT_POWER,
     LPT_LEFT_CURLY,
-    LPT_RIGHT_CURLY
+    LPT_RIGHT_CURLY,
+    LPT_OR,
+    LPT_NEG,
+    LPT_LAND,
+    LPT_LOR,
+    LPT_EQEQ,
+    LPT_LSL,
+    LPT_LSR
+};
+enum
+{
+    LPP_NULL,
+    LPP_ASSIGN,
+    LPP_LOGIC_OR,
+    LPP_LOGIC_AND,
+    LPP_BIT_OR,
+    LPP_BIT_XOR,
+    LPP_BIT_AND,
+    LPP_EQNEQ,
+    LPP_COMP,
+    LPP_BIT_SHIFT,
+    LPP_ADD,
+    LPP_MUL,
+    LPP_LOW
+    
 };
 enum
 {
@@ -121,8 +145,9 @@ typedef struct
 
 typedef struct 
 {
-    char is_var;
-    lpbool is_loaded;
+    lpbool is_var :1;
+    lpbool is_loaded :1;
+    lpbool is_deptred :1;
     lp_parse_structed_type *type;
     union 
     {
@@ -166,6 +191,8 @@ LP_Err lp_compiler_do(lp_compiler *ctx);
 LP_Err lp_lexer_do(lp_compiler *ctx);
 
 LP_Err lp_compiler_codegen(lp_compiler *ctx);
+
+int lp_parser_priority(lp_lex_token t);
 
 lp_lex_token *lp_lexer_next(lp_compiler *ctx,lpbool skip,lpbool inc);
 
