@@ -79,7 +79,7 @@ enum
 enum
 {
     LPBT_INT,
-    LPBT_STR
+    LPBT_CHAR
 };
 typedef struct
 {

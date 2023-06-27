@@ -2,6 +2,7 @@
 #include"lperr.h"
 #include "lptypes.h"
 #include "lpvm.h"
+#include <stdint.h>
 #include<string.h>
 #include<stdlib.h>
 #define lp_nexttoken lp_lexer_next(ctx,0,1)
@@ -23,7 +24,7 @@ lp_parse_structed_type lp_builtin_types[LP_BUILTIN_TYPE_NUM] ={
     },
     {
         .root_type={
-            .builtin_name = "str",
+            .builtin_name = "char",
             .occupy_bytes = 1,
         },
         .inner_types = 0
@@ -135,8 +136,23 @@ void lp_parser_gen_binopcode(lp_compiler *ctx, lp_lex_token t)
     lpdebug("[OP] Push a binop;\n");
 }
 
+void lp_parser_gen_szcvt(lp_compiler *ctx, uint8_t from)
+{
+    int c = 0;
+    if(from == 1)
+        c = 0x000000ff;
+    else if(from ==2)
+        c = 0x0000ffff;
+    else
+        return;
+    lp_parser_push_op(ctx, LOP_LOADc);
+    lp_bin_pushval(ctx->vm, c);
+    lp_parser_push_op(ctx, LOP_AND);
+}
+
 void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
 {
+    lpvmvalue len = v->array_length * v->type->root_type.occupy_bytes;
     if(v->is_loaded)
         return;
     if(!v->is_var)
@@ -147,11 +163,11 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
     }else
     {
         lpptrsize data = v->v_stackoffset;
-        lpvmvalue len = v->array_length * v->type->root_type.occupy_bytes;
         lpdebug("Load:0x%x %d;\n",data,len);
         lp_parser_push_op(ctx,ctx->func_field?LOP_LOAD_STACK:LOP_GET_GLO);
         //lp_bin_pushval(ctx->vm,len);
         lp_bin_pushval(ctx->vm,data);
+        lp_parser_gen_szcvt(ctx, v->type->root_type.occupy_bytes);
             //ctx->stack_offset += len;
         //TODO: Multibytes load
     }
@@ -179,6 +195,7 @@ void lp_parser_gen_assigncode(lp_compiler *ctx, lp_parse_eval_value *left, lp_pa
     {
         lp_parser_push_op(ctx, LOP_MEMSET);
     }else {
+        lp_parser_gen_szcvt(ctx, left->type->root_type.occupy_bytes);
         lp_parser_push_op(ctx,ctx->func_field?LOP_POP_TO:LOP_SET_GLO);
         //lp_bin_pushval(ctx->vm,right->type->root_type.occupy_bytes);
         lp_bin_pushval(ctx->vm,left->v_stackoffset);
@@ -290,6 +307,8 @@ lp_parse_eval_value *lp_parser_const_op(lp_parse_eval_value *left, lp_parse_eval
 lpbool lp_parser_raw_typechk(lp_parse_eval_value left,lp_parse_eval_value right)
 {
     lpvmvalue lsz=0,rsz=0;
+    if(left.type->root_type.occupy_bytes<=4 && right.type->root_type.occupy_bytes<=4)
+        return 1; // TODO : More specific check 
     if(left.ptr_depth)
         lsz = 4;
     else
@@ -383,6 +402,9 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
         lp_parser_expression(ctx, r, LPP_ASSIGN, gencode);
         if(tp)
         {
+            //lp_parser_gen_szcvt(ctx, uint8_t from)
+
+            // TODO: real convert in IL
             r->type = tp;
             r->array_length = 1;
             r->ptr_depth = ptr_depth;

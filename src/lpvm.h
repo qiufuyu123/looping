@@ -11,6 +11,7 @@ typedef enum
 
     LOP_LOAD_STACK,
     LOP_LOADc,
+    LOP_LOADb,  // load 1 byte
     LOP_POP_TO, // pop the stack top to stack
 
     LOP_GETPTR,

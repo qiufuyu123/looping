@@ -47,7 +47,7 @@ int main()
     FILE *fp = fopen("asm_debug.txt", "w");
     fclose(fp);
     // lp_compiler_init(&comp,&ctx,"let x:int = 2*3-7;let y:int = 2;struct s1{let x:int;let y:int};",64);
-    lp_compiler_init(&comp,&ctx,"int z =233+1*0,*y=((int*)&z);int w=z ; int ww=w;\n",46);
+    lp_compiler_init(&comp,&ctx,"int z =233+1*0,*y=((int*)&z);int w=z ; int ww=w;char c=1;\n",59);
     comp.input_callback = input;
     lp_compiler_do(&comp);
 }
