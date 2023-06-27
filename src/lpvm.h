@@ -13,8 +13,6 @@ typedef enum
     LOP_LOADc,
     LOP_POP_TO, // pop the stack top to stack
 
-
-
     LOP_GETPTR,
     LOP_DEPTR,
     LOP_MEMSET,
@@ -27,6 +25,7 @@ typedef enum
     LOP_OR,
     LOP_AND,
     LOP_NOT,
+    LOP_XOR,
     LOP_EQ,
     LOP_LG_OR,
     LOP_LG_AND,
@@ -35,6 +34,8 @@ typedef enum
     LOP_LESS,
     LOP_GRT_EQ,
     LOP_LESS_EQ,
+    LOP_LSL,
+    LOP_LSR,
 
     LOP_GET_GLO = LOP_LOAD_STACK + 64,
     LOP_SET_GLO = LOP_POP_TO + 64,

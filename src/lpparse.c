@@ -159,6 +159,15 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
     
 }
 
+void lp_parser_gen_binop_loadcode(lp_compiler *ctx, lp_parse_eval_value left, lp_parse_eval_value right)
+{
+    if(left.is_var || right.is_var)
+    {
+        lp_parser_gen_loadcode(ctx, &left);
+        lp_parser_gen_loadcode(ctx, &right);
+    }
+}
+
 void lp_parser_gen_assigncode(lp_compiler *ctx, lp_parse_eval_value *left, lp_parse_eval_value *right,lpbool isptr)
 {
     lpdebug("Assign :%d --> %d\n",ctx->stack_offset,left->v_stackoffset);
@@ -330,7 +339,7 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
     {
         lp_nexttoken;
         lp_parser_expression(ctx, r, level,0);
-        if(!r->is_var)
+        if(!r->is_var || r->is_var == 2)
         {
             LP_ERR("Cannot get address of a constant!",*ctx->cur_token);
         }
@@ -394,16 +403,8 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
     }
     int prio = 0,rprio=0;
     while (level <= (prio=lp_parser_priority(*lp_nexttoken))) {
-        
-        // if(prio ==LPP_ASSIGN)
-        // {
-        //     if(r->is_deptred)
-        //     {
-        //         ctx->vm->opcodes.codes_end--;
-        //         //erase the last DEPTR OPCODE
-        //     }
-        //     lp_parser_expression(ctx, &right, level-1,gencode);
-        // }
+
+        t = ctx->cur_token->ttype;
         if(prio == LPP_ASSIGN)
         {
             lp_nexttoken;
@@ -416,118 +417,126 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
             }
             lp_parser_gen_assigncode(ctx, r, &right, isptr);
         }
-        else if(prio == LPP_BIT_SHIFT)
-        {
-            if(!right.is_var && !r->is_var)
-            {
-                if(t == LPT_LSL)
-                    r->v_number = r->v_number << right.v_number;
-                else 
-                    r->v_number = r->v_number >> right.v_number;
-            }else {
-            
-            }
-        }
-        else if(prio == LPP_COMP)
-        {
-            if(!right.is_var && !r->is_var)
-            {
-                if(t == LPT_LESS)
-                    r->v_number = (r->v_number < right.v_number);
-                else if(t == LPT_GREAT)
-                    r->v_number = (r->v_number > right.v_number);
-            }else {
-            
-            }
-        }
-        else if(prio == LPP_EQNEQ)
-        {
-            if(!right.is_var && !r->is_var)
-            {
-                if(t == LPT_EQEQ)
-                    r->v_number = (r->v_number == right.v_number);
-                else 
-                    r->v_number = (r->v_number != right.v_number);
-            }else {
-            
-            }
-        }
-        else if(prio == LPP_BIT_AND)
-        {
-            if(!right.is_var && !r->is_var)
-            {
-                r->v_number = r->v_number & right.v_number;
-            }else {
-            
-            }
-        }
-        else if(prio == LPP_BIT_XOR)
-        {
-            if(!right.is_var && !r->is_var)
-            {
-                r->v_number = r->v_number ^ right.v_number;
-            }else {
-            
-            }
-        }
-        else if(prio == LPP_BIT_OR)
-        {
-            if(!right.is_var && !r->is_var)
-            {
-                r->v_number = r->v_number | right.v_number;
-            }else {
-            
-            }
-        }
-        else if(prio == LPP_LOGIC_AND){
-            if(!right.is_var && !r->is_var)
-            {
-                r->v_number = r->v_number && right.v_number;
-            }else {
-            
-            }
-        }else if(prio == LPP_LOGIC_OR){
-            if(!right.is_var && !r->is_var)
-            {
-                r->v_number = r->v_number || right.v_number;
-            }else {
-            
-            }
-        }else if(prio == LPP_ADD)
-        {
-            lp_lex_token *op = ctx->cur_token;
-            lp_nexttoken;
-            lp_parser_expression(ctx, &right, LPP_ADD+1, 1);
-            if(!right.is_var && !r->is_var)
-            {
-                if(op->ttype == LPT_ADD)
-                    r->v_number = r->v_number + right.v_number;
-                else
-                    r->v_number = r->v_number - right.v_number;
-            }else {
-                lp_parser_gen_loadcode(ctx, r);
-                lp_parser_gen_loadcode(ctx, &right);
-                lp_parser_gen_binopcode(ctx,*op);
-            }
-        }else if(prio == LPP_MUL)
-        {
-            lp_lex_token *op = ctx->cur_token;
-            lp_nexttoken;
-            lp_parser_expression(ctx, &right, LPP_MUL+1, 1);
-            if(!right.is_var && !r->is_var)
-            {
-                if(op->ttype == LPT_MUL)
-                    r->v_number = r->v_number * right.v_number;
-                else
-                    r->v_number = r->v_number / right.v_number;
-            }else {
-                lp_parser_gen_loadcode(ctx, r);
-                lp_parser_gen_loadcode(ctx, &right);
-                lp_parser_gen_binopcode(ctx,*op);
-            }
-        }
         else {
-            LP_ERR("Unknonw binary op", *ctx->cur_token);
+            lp_nexttoken;
+            lp_parser_expression(ctx, &right, prio+1, 1);
+            lp_parser_gen_binop_loadcode(ctx, *r, right);
+            if(r->is_var)
+                r->is_var = 2;    
+            if(right.is_var)
+            {
+                r->is_var = 2;
+                // '2' means it is a by-product while evaluating
+                r->is_loaded = 1;
+                // Notice here:
+                // Since we set is_loaded to true, we do not need
+                // to care about the stack_offset.
+            }
+            if(prio == LPP_BIT_SHIFT)
+            {
+                if(!r->is_var)
+                {
+                    if(t == LPT_LSL)
+                        r->v_number = r->v_number << right.v_number;
+                    else 
+                        r->v_number = r->v_number >> right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, t == LPT_LSL? LOP_LSL:LOP_LSR);
+                }
+            }
+            else if(prio == LPP_ADD)
+            {
+                if(!r->is_var)
+                {
+                    if(t == LPT_ADD)
+                        r->v_number = r->v_number + right.v_number;
+                    else
+                        r->v_number = r->v_number - right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, t == LPT_ADD ? LOP_ADD : LOP_MINUS);
+                }
+            }else if(prio == LPP_MUL)
+            {
+                if(!r->is_var)
+                {
+                    if(t == LPT_MUL)
+                        r->v_number = r->v_number * right.v_number;
+                    else
+                        r->v_number = r->v_number / right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, t == LPT_MUL ? LOP_MUL : LOP_DIV);
+                }
+            }
+            else if(prio == LPP_COMP)
+            {
+                if(!r->is_var)
+                {
+                    if(t == LPT_LESS)
+                        r->v_number = (r->v_number < right.v_number);
+                    else if(t == LPT_GREAT)
+                        r->v_number = (r->v_number > right.v_number);
+                }else {
+                    lp_parser_push_op(ctx, t == LPT_LESS?LOP_LESS:LOP_GRT);
+                }
+            }
+            else if(prio == LPP_EQNEQ)
+            {
+                if(!r->is_var)
+                {
+                    if(t == LPT_EQEQ)
+                        r->v_number = (r->v_number == right.v_number);
+                    else 
+                        r->v_number = (r->v_number != right.v_number);
+                }else {
+                    lp_parser_push_op(ctx, t == LPT_EQ?LOP_EQ:LOP_LG_NOTEQ);      
+                }
+            }
+            else if(prio == LPP_BIT_AND)
+            {
+                if(!r->is_var)
+                {
+                    r->v_number = r->v_number & right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, LOP_AND);
+                }
+            }
+            else if(prio == LPP_BIT_XOR)
+            {
+                if(!r->is_var)
+                {
+                    r->v_number = r->v_number ^ right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, LOP_XOR);
+                }
+            }
+            else if(prio == LPP_BIT_OR)
+            {
+                if(!r->is_var)
+                {
+                    r->v_number = r->v_number | right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, LOP_OR);
+                }
+            }
+            else if(prio == LPP_LOGIC_AND){
+                if(!r->is_var)
+                {
+                    r->v_number = r->v_number && right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, LOP_LG_AND);
+                }
+            }else if(prio == LPP_LOGIC_OR){
+                if(!r->is_var)
+                {
+                    r->v_number = r->v_number || right.v_number;
+                }else {
+                    lp_parser_push_op(ctx, LOP_LG_OR);
+                }
+            }
+            else{
+                LP_ERR("Unknonw binary op", *ctx->cur_token);
+            }
+            //r->is_loaded = 1;
         }
         rprio = prio;
     }
@@ -601,19 +610,6 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
     }
     else {
         lp_parse_eval_value left;
-        // //lp_lexer_back(ctx);
-        // lpbool isptr = 0;
-        // lp_parser_left_eval(ctx,&left,&isptr);
-        // lp_parser_match(lp_nexttoken,LPT_EQ);
-        // lp_parse_eval_value right;
-        // lp_parser_expression(ctx,&right,LPP_ASSIGN,1);
-        // lp_lexer_back(ctx);
-        // if(!lp_parser_raw_typechk(left, right))
-        // {
-        //     LP_ERR("Unmatched type.", *root_t);
-        // }
-        // lp_parser_gen_assigncode(ctx,&left,&right,isptr);
-        // lpdebug("Assign a var(isptr:%d);\n",isptr);
         if(lp_parser_expression(ctx, &left, LPP_ASSIGN,0)!=LPP_ASSIGN)
         {
             LP_ERR("Unknown statement, expect a expression", *root_t);

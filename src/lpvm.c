@@ -140,7 +140,10 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
         _LP_VM_ARITH_AUTO(LOP_DIV, /)
         _LP_VM_ARITH_AUTO(LOP_OR, |)
         _LP_VM_ARITH_AUTO(LOP_AND, &)
+        _LP_VM_ARITH_AUTO(LOP_XOR, ^)
         _LP_VM_ARITH_AUTO(LOP_MOD, %)
+        _LP_VM_ARITH_AUTO(LOP_LSL, <<)
+        _LP_VM_ARITH_AUTO(LOP_LSR, >>)
         _LP_VM_ARITH_AUTO_SINGLE(LOP_NOT,~)
         _LP_VM_ARITH_AUTO(LOP_EQ,==)
         _LP_VM_ARITH_AUTO(LOP_LG_OR,||)
@@ -150,6 +153,7 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
         _LP_VM_ARITH_AUTO(LOP_LESS,<)
         _LP_VM_ARITH_AUTO(LOP_GRT_EQ,>=)
         _LP_VM_ARITH_AUTO(LOP_LESS_EQ,<=)
+
 
         default:
             stat = -1;
