@@ -145,7 +145,7 @@ typedef struct
 
 typedef struct 
 {
-    lpbool is_var :1;
+    lpbool is_var :2;
     lpbool is_loaded :1;
     lpbool is_deptred :1;
     lp_parse_structed_type *type;

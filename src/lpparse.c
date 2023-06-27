@@ -87,7 +87,7 @@ lp_parse_symbol *lp_new_symbol(lp_compiler *ctx, lp_parse_structed_type *type, l
     if(auto_offset)
     {
         r->stack_offset = ctx->stack_offset;
-        ctx->stack_offset += type->root_type.occupy_bytes;
+        ctx->stack_offset += (type->root_type.occupy_bytes+3)&~3; // 4bytes aligned
     }
 
     //TODO: Add IL Generate
@@ -175,12 +175,12 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
     
 }
 
-void lp_parser_gen_binop_loadcode(lp_compiler *ctx, lp_parse_eval_value left, lp_parse_eval_value right)
+void lp_parser_gen_binop_loadcode(lp_compiler *ctx, lp_parse_eval_value *left, lp_parse_eval_value *right)
 {
-    if(left.is_var || right.is_var)
+    if(left->is_var || right->is_var)
     {
-        lp_parser_gen_loadcode(ctx, &left);
-        lp_parser_gen_loadcode(ctx, &right);
+        lp_parser_gen_loadcode(ctx, left);
+        lp_parser_gen_loadcode(ctx, right);
     }
 }
 
@@ -442,7 +442,7 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
         else {
             lp_nexttoken;
             lp_parser_expression(ctx, &right, prio+1, 1);
-            lp_parser_gen_binop_loadcode(ctx, *r, right);
+            lp_parser_gen_binop_loadcode(ctx, r, &right);
             if(r->is_var)
                 r->is_var = 2;    
             if(right.is_var)
@@ -510,7 +510,7 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
                     else 
                         r->v_number = (r->v_number != right.v_number);
                 }else {
-                    lp_parser_push_op(ctx, t == LPT_EQ?LOP_EQ:LOP_LG_NOTEQ);      
+                    lp_parser_push_op(ctx, t == LPT_EQEQ?LOP_EQ:LOP_LG_NOTEQ);      
                 }
             }
             else if(prio == LPP_BIT_AND)
@@ -629,6 +629,13 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
             }
         }
 
+    }
+    else if(root_t->ttype == LPT_KW_IF)
+    {
+        lp_parse_eval_value v;
+        lp_parser_match(lp_nexttoken, LPT_LEFT_PAREN);
+        lp_parser_expression(ctx, &v, LPP_ASSIGN, 1);
+        lp_parser_match(lp_nexttoken, LPT_RIGHT_PAREN);
     }
     else {
         lp_parse_eval_value left;
