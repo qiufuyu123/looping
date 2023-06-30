@@ -18,6 +18,9 @@ typedef enum
     LOP_DEPTR,
     LOP_MEMSET,
 
+    LOP_TEST,
+    LOP_JNE,
+    LOP_J,
     LOP_ADD,
     LOP_MINUS,
     LOP_MUL,
@@ -31,6 +34,7 @@ typedef enum
     LOP_LG_OR,
     LOP_LG_AND,
     LOP_LG_NOTEQ,
+    LOP_LG_NOT,
     LOP_GRT,
     LOP_LESS,
     LOP_GRT_EQ,
@@ -86,6 +90,7 @@ typedef struct
 {
     lpvmvalue vret;
     lpvmvalue vvmflg;
+    lpvmvalue flg;
 }lp_vm_regs;
 
 typedef struct 

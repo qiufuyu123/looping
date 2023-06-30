@@ -43,7 +43,13 @@ debugasm;\
 break;\
 
 #define _LP_VM_ARITH_AUTO_SINGLE(code,op) case code:\
-break;
+val1=(lp_vm_pop(ctx,lpvmvalue));\
+val1=op val1;\
+lp_vm_push(ctx,lpvmvalue,val1); \
+lpdebug("[VM] UnitOP!;\n");\
+sprintf(debugbuf, "OP,%s\n",#op);\
+debugasm;\
+break;\
 
 lpvmptr lp_vm_from_raw_ptr(lp_vm_ctx *ctx, lpvmptr ptr)
 {
@@ -131,7 +137,30 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             sprintf(debugbuf, "MEMSET\n",val1);
             debugasm;
             break;
+        case LOP_TEST:
+            val1 = lp_vm_pop(ctx, lpvmvalue);
+            ctx->regs.flg = val1;
+            lpdebug("[VM] Op: Test of value:0x%x;\n",val1);
+            sprintf(debugbuf, "TEST\n",val1);
+            debugasm;
+            break;
+        case LOP_JNE:
+            val1 = lp_vm_nextop_value(ctx);
+            if(ctx->regs.flg == 0)
+                ctx->opcodes.pc = ctx->opcodes.codes + val1;
+            lpdebug("[VM] Op: JNE to:0x%x,state(%d);\n",val1,ctx->regs.flg);
+            sprintf(debugbuf, "JNE 0x%x\n",val1);
+            debugasm;
+            break;
+        case LOP_J:
+            val1 = lp_vm_nextop_value(ctx);    
+            ctx->opcodes.pc = ctx->opcodes.codes + val1;
+            lpdebug("[VM] Op: JUMP to:0x%x,state(%d);\n",val1,ctx->regs.flg);
+            sprintf(debugbuf, "J 0x%x\n",val1);
+            debugasm;
+            break;
         case LOP_NOP:
+            lpdebug("[VM] NOP!\n");
             break;
         
         _LP_VM_ARITH_AUTO(LOP_ADD, +)
@@ -145,6 +174,7 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
         _LP_VM_ARITH_AUTO(LOP_LSL, <<)
         _LP_VM_ARITH_AUTO(LOP_LSR, >>)
         _LP_VM_ARITH_AUTO_SINGLE(LOP_NOT,~)
+        _LP_VM_ARITH_AUTO_SINGLE(LOP_LG_NOT,!)
         _LP_VM_ARITH_AUTO(LOP_EQ,==)
         _LP_VM_ARITH_AUTO(LOP_LG_OR,||)
         _LP_VM_ARITH_AUTO(LOP_LG_AND,&&)
