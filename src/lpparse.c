@@ -593,6 +593,28 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
     return rprio;
 }
 
+void lp_parser_kw_paren_eval(lp_compiler *ctx, lp_parse_eval_value *v)
+{
+    lp_parser_match(lp_nexttoken, LPT_LEFT_PAREN);
+    lp_nexttoken;
+    lp_parser_expression(ctx, v, LPP_ASSIGN, 1);
+    lp_parser_gen_loadcode(ctx, v);
+    lp_parser_match(lp_nexttoken, LPT_RIGHT_PAREN);
+}
+
+LP_Err lp_parser_statment(lp_compiler *ctx);
+
+void lp_parser_kw_curly(lp_compiler *ctx)
+{
+    lp_parser_match(lp_nexttoken, LPT_LEFT_CURLY);
+    lpbool old = ctx->interpret_mode;
+    ctx->interpret_mode = 0;
+    while (lp_forwardtoken->ttype != LPT_RIGHT_CURLY) {
+        lp_parser_statment(ctx);
+    }
+    ctx->interpret_mode = old;
+}
+
 LP_Err lp_parser_statment(lp_compiler *ctx)
 {
     lp_lex_token *root_t = lp_nexttoken;
@@ -657,24 +679,30 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
         }
 
     }
+    else if(root_t->ttype == LPT_KW_WHILE)
+    {
+        lp_parse_eval_value v;
+        lpvmvalue loops = ctx->vm->opcodes.codes_end - ctx->vm->opcodes.codes;
+        lp_parser_kw_paren_eval(ctx, &v);
+        lp_parser_push_op(ctx, LOP_TEST);
+        lp_parser_push_op(ctx, LOP_JNE);
+        lpvmvalue *jneaddr = ctx->vm->opcodes.codes_end;
+        ctx->vm->opcodes.codes_end += 4; // prepare for code injection
+        lp_parser_kw_curly(ctx);
+        lp_nexttoken;
+        lp_parser_push_op(ctx, LOP_J);
+        lp_bin_pushval(ctx->vm, loops);
+        *jneaddr = (ctx->vm->opcodes.codes_end - ctx->vm->opcodes.codes);
+    }
     else if(root_t->ttype == LPT_KW_IF)
     {
         lp_parse_eval_value v;
-        lp_parser_match(lp_nexttoken, LPT_LEFT_PAREN);
-        lp_nexttoken;
-        lp_parser_expression(ctx, &v, LPP_ASSIGN, 1);
-        lp_parser_gen_loadcode(ctx, &v);
-        lp_parser_match(lp_nexttoken, LPT_RIGHT_PAREN);
-        lp_parser_match(lp_nexttoken, LPT_LEFT_CURLY);
+        lp_parser_kw_paren_eval(ctx, &v);
         lp_parser_push_op(ctx, LOP_TEST);
         lp_parser_push_op(ctx, LOP_JNE);
         lpvmvalue *elsep = ctx->vm->opcodes.codes_end;
         ctx->vm->opcodes.codes_end += 4; // prepare for code injection
-        ctx->interpret_mode = 0;
-        while (lp_forwardtoken->ttype != LPT_RIGHT_CURLY) {
-            lp_parser_statment(ctx);
-        }
-        ctx->interpret_mode = 1;
+        lp_parser_kw_curly(ctx);
         *elsep = (ctx->vm->opcodes.codes_end - ctx->vm->opcodes.codes);
         lp_nexttoken;
         if(lp_forwardtoken->ttype == LPT_KW_ELSE)
@@ -691,10 +719,11 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
             }
             ctx->interpret_mode = 1;
             *elsep = (ctx->vm->opcodes.codes_end - ctx->vm->opcodes.codes);
+            lp_nexttoken;
             
         }
         lp_parser_push_op(ctx, LOP_NOP);
-        lp_nexttoken;
+        //lp_nexttoken;
 
     }
     else {
