@@ -195,7 +195,7 @@ void lp_parser_gen_assigncode(lp_compiler *ctx, lp_parse_eval_value *left, lp_pa
     {
         lp_parser_push_op(ctx, LOP_MEMSET);
     }else {
-        lp_parser_gen_szcvt(ctx, left->type->root_type.occupy_bytes);
+        lp_parser_gen_szcvt(ctx, left->ptr_depth?4:left->type->root_type.occupy_bytes);
         lp_parser_push_op(ctx,ctx->func_field?LOP_POP_TO:LOP_SET_GLO);
         //lp_bin_pushval(ctx->vm,right->type->root_type.occupy_bytes);
         lp_bin_pushval(ctx->vm,left->v_stackoffset);
@@ -335,7 +335,17 @@ int lp_parser_expression(lp_compiler*ctx,lp_parse_eval_value* r, int level,lpboo
     {
         lp_new_eval_val(r, &lp_builtin_types[LPBT_INT], tk->v_int,0);
         //lp_parser_gen_loadcode(ctx, r);
-    }else if(t == LPT_ADD)
+    }else if(t == LPT_STRING)
+    {
+        lp_parser_push_op(ctx, LOP_LRES);
+        int l = strlen(tk->v_str)+1;
+        lp_bin_pushval(ctx->vm, l);
+        char *s = ctx->vm->opcodes.codes_end;
+        lp_vm_op_push(ctx->vm, tk->v_str, l);
+        lp_new_eval_val(r, &lp_builtin_types[LPBT_CHAR], (lpvmptr)(s-ctx->vm->opcodes.codes),0);
+        r->ptr_depth = 1;
+    }
+    else if(t == LPT_ADD)
     {
         lp_nexttoken;
         lp_parser_expression(ctx, r, level,gencode);

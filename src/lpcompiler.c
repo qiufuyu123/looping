@@ -1,5 +1,6 @@
 #include"lpcompiler.h"
 #include"lperr.h"
+#include "lptypes.h"
 #include<string.h>
 #include<stdlib.h>
 void lp_compiler_init(lp_compiler *ctx,lp_vm_ctx* vmctx, char *codebuf, lpsize bufsize)
@@ -37,5 +38,6 @@ LP_Err lp_compiler_do(lp_compiler *ctx)
     if(e != LP_OK)
         lp_compiler_exit(e);
     lpprintf(LPDINFO "===== Looping Comilier Finish! =====" LPEOL);
+    //lpprintf(LPDINFO "total:%db, ")
     return e;
 }

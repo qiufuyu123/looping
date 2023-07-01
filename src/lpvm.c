@@ -10,10 +10,10 @@ void lp_vm_init(lp_vm_ctx *ctx, char *mem,lpsize mem_size, lpsize heap_size,
                 lpsize ressize)
 {
     ctx->mem_start = mem;
-    lp_msetup(&ctx->mem,heap_size,mem);
-    lp_vm_stack_init(&ctx->stack,mem+heap_size,stack_size);
-    lp_vm_code_init(&ctx->opcodes,mem+heap_size+stack_size,code_size);
-    lp_vm_staticres_init(&ctx->sres, mem+heap_size+stack_size+code_size, ressize);
+    lp_vm_code_init(&ctx->opcodes,mem,code_size);
+    lp_vm_stack_init(&ctx->stack,mem+code_size,stack_size);
+    lp_msetup(&ctx->mem,heap_size,mem+code_size+stack_size);
+    //lp_vm_staticres_init(&ctx->sres, mem+heap_size+stack_size+code_size, ressize);
     ctx->vm_flg = LVM_NORMAL;
     lpinfo("Vm inited!");
 
@@ -150,6 +150,13 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
                 ctx->opcodes.pc = ctx->opcodes.codes + val1;
             lpdebug("[VM] Op: JNE to:0x%x,state(%d);\n",val1,ctx->regs.flg);
             sprintf(debugbuf, "JNE 0x%x\n",val1);
+            debugasm;
+            break;
+        case LOP_LRES:
+            val1 = lp_vm_nextop_value(ctx); // size in bytes
+            lp_vm_nextn(ctx, val1);
+            lpdebug("[VM] Op: LRES %dbytes;\n",val1);
+            sprintf(debugbuf, "LRES %dbytes\n",val1);
             debugasm;
             break;
         case LOP_J:

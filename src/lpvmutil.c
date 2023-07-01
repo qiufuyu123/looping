@@ -1,3 +1,4 @@
+#include "lptypes.h"
 #include"lpvm.h"
 #include"lperr.h"
 #include<string.h>
@@ -95,6 +96,14 @@ char lp_vm_nextop(lp_vm_ctx *ctx)
     type r = *(type*)opcodes.pc; \
     ctx->opcodes.pc+=sizeof(type); 
 
+lpbool lp_vm_nextn(lp_vm_ctx *ctx,lpsize n)
+{
+    if(ctx->opcodes.pc +n > ctx->opcodes.codes_end)
+        return 0;
+    ctx->opcodes.pc += n;
+    return 1;
+}
+
 void *lp_vm_op_push(lp_vm_ctx *ctx, char *v, lpsize sz)
 {
     if(ctx->opcodes.codes_end + sz >= ctx->opcodes.codes + ctx->opcodes.code_size)
@@ -104,7 +113,7 @@ void *lp_vm_op_push(lp_vm_ctx *ctx, char *v, lpsize sz)
         ctx->opcodes.codes = n;
         ctx->opcodes.code_size += 256;
     }
-    memcpy(ctx->opcodes.codes_end,v,sz);\
+    memcpy(ctx->opcodes.codes_end,v,sz);
     void *r = ctx->opcodes.codes_end;
     ctx->opcodes.codes_end += sz;
     return r;

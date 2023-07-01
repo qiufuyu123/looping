@@ -11,7 +11,6 @@ typedef enum
 
     LOP_LOAD_STACK,
     LOP_LOADc,
-    LOP_LOADb,  // load 1 byte
     LOP_POP_TO, // pop the stack top to stack
 
     LOP_GETPTR,
@@ -21,6 +20,8 @@ typedef enum
     LOP_TEST,
     LOP_JNE,
     LOP_J,
+
+    LOP_LRES, // resource label
     LOP_ADD,
     LOP_MINUS,
     LOP_MUL,
@@ -160,6 +161,9 @@ lpvmptr lp_vm_nextop_ptr(lp_vm_ctx *ctx);
 lpvmvalue lp_vm_nextop_value(lp_vm_ctx *ctx);
 
 void *lp_vm_op_push(lp_vm_ctx *ctx, char *v, lpsize sz);
+
+lpbool lp_vm_nextn(lp_vm_ctx *ctx,lpsize n);
+
 #define lp_bin_pushop(ctx,op) lp_vm_op_push(ctx,&op,1)
 #define lp_bin_pushval(ctx,v) lp_vm_op_push(ctx,&v,sizeof(lpvmvalue))
 #define lp_bin_pushptr(ctx,v) lp_vm_op_push(ctx,&v,sizeof(lpvmptr))
