@@ -8,7 +8,7 @@ typedef enum
     // 0000_0000b
     LOP_ERR,
     LOP_NOP,
-
+    LOP_SPACE,
     LOP_LOAD_STACK,
     LOP_LOADc,
     LOP_POP_TO, // pop the stack top to stack

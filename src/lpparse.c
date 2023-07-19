@@ -150,9 +150,11 @@ void lp_parser_gen_szcvt(lp_compiler *ctx, uint8_t from)
     lp_parser_push_op(ctx, LOP_AND);
 }
 
+#define LP_GET_SIZE(v) (v).array_length * (v).type->root_type.occupy_bytes
+
 void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
 {
-    lpvmvalue len = v->array_length * v->type->root_type.occupy_bytes;
+    lpvmvalue len = (LP_GET_SIZE(*v)+3) / 4;
     if(v->is_loaded)
         return;
     if(!v->is_var)
@@ -163,13 +165,18 @@ void lp_parser_gen_loadcode(lp_compiler *ctx,lp_parse_eval_value *v)
     }else
     {
         lpptrsize data = v->v_stackoffset;
-        lpdebug("Load:0x%x %d;\n",data,len);
+        lpdebug("Load:0x%x %d;\n",data,len*4);
         lp_parser_push_op(ctx,ctx->func_field?LOP_LOAD_STACK:LOP_GET_GLO);
         //lp_bin_pushval(ctx->vm,len);
         lp_bin_pushval(ctx->vm,data);
         lp_parser_gen_szcvt(ctx, v->type->root_type.occupy_bytes);
-            //ctx->stack_offset += len;
-        //TODO: Multibytes load
+        // TODO: More specific
+        len-=1;
+        if(len)
+        {
+            lp_parser_push_op(ctx, LOP_SPACE);
+            lp_vm_push(ctx->vm, lpvmvalue, len);
+        }
     }
     v->is_loaded = 1;
     
@@ -220,7 +227,7 @@ lp_parse_structed_type *lp_parser_get_type(lp_compiler*ctx, lp_lex_token *name)
     
 }
 
-lp_parse_symbol *lp_parser_add_variable(lp_compiler *ctx, lp_lex_token *name, lp_lex_token *typename, lp_parse_structed_type *type)
+lp_parse_symbol *lp_parser_add_variable(lp_compiler *ctx, lp_lex_token *name, lp_lex_token *typename, lp_parse_structed_type *type,int ptr_dep,int arr_len)
 {
     lp_parse_symbol *redef = 0;
     if(lp_parser_sym_chkglo(ctx,name,&redef))
@@ -251,6 +258,8 @@ lp_parse_symbol *lp_parser_add_variable(lp_compiler *ctx, lp_lex_token *name, lp
         lp_array_push(&ctx->glo_symbol_table,r);
     }
     lpdebug("Assgin A Variable:`%s`, addr:`0x%x`, size:%d bytes\n",r->words->v_str,r->stack_offset,r->type->root_type.occupy_bytes);
+    r->array_length = arr_len;
+    r->ptr_depth = ptr_dep;
     return r;
 }
 
@@ -615,68 +624,79 @@ void lp_parser_kw_curly(lp_compiler *ctx)
     ctx->interpret_mode = old;
 }
 
+void lp_parser_def_statment(lp_compiler *ctx,lpbool assign)
+{
+    lp_lex_token *type = ctx->cur_token;
+    while (1) {
+        int ptr_depth = 0;
+        int arr_length = 1;
+        lp_lex_token *left = lp_nexttoken;
+        if(left->ttype == LPT_LEFT_BRACKET)
+        {
+            lp_nexttoken;
+            lp_parse_eval_value arr_len;
+            lp_parser_expression(ctx, &arr_len, LPP_ASSIGN, 0);
+            if(arr_len.is_var)
+            {
+                LP_ERR("The length of an array must be a constant!", *ctx->cur_token);
+            }
+            arr_length = arr_len.v_number;
+            lp_parser_match(lp_nexttoken, LPT_RIGHT_BRACKET);
+            left=lp_nexttoken;
+        }
+        while (left->ttype == LPT_MUL) {
+            ptr_depth++;
+            left = lp_nexttoken;
+        }
+
+        
+        lp_parser_match(left, LPT_WORDS);
+        lp_lex_token *nxt = lp_forwardtoken;
+        lp_parse_eval_value right;
+        lp_parse_symbol * sym;
+        sym = lp_parser_add_variable(ctx, left, type,0,ptr_depth,arr_length);
+        if(nxt->ttype == LPT_EQ)
+        {
+            lp_nexttoken;
+            if(!assign)
+            {
+                LP_ERR("Assign expression is not available here!",*nxt);
+            }
+            lp_nexttoken;
+            lp_parser_expression(ctx,&right, LPP_ASSIGN,1);
+            lp_parser_gen_loadcode(ctx, &right);
+            int llen = (LP_GET_SIZE(*sym)+3)/4;
+            int rlen = (LP_GET_SIZE(right)+3)/4;
+            if(rlen>llen)
+            {
+                LP_ERR("No match type!", *left);
+            }
+        }else {
+            int len=(LP_GET_SIZE(*sym)+3)/4;
+            ctx->stack_offset+=len*4;
+            lp_parser_push_op(ctx, LOP_SPACE);
+            lp_bin_pushval(ctx->vm, len);
+        }
+        
+        //lpdebug("match :type: %s left:%s; right:",type->v_str?:"auto", left->v_str);
+        lp_parser_print_val(&right);
+        if(lp_forwardtoken->ttype == LPT_COMMA)
+        {
+            lp_nexttoken;
+        }else {
+            break;
+        }
+    }
+}
+
 LP_Err lp_parser_statment(lp_compiler *ctx)
 {
     lp_lex_token *root_t = lp_nexttoken;
     
 
-    if(root_t->ttype == LPT_WORDS && (lp_forwardtoken->ttype == LPT_WORDS || lp_forwardtoken->ttype == LPT_MUL))
+    if(root_t->ttype == LPT_WORDS && (lp_forwardtoken->ttype == LPT_WORDS || lp_forwardtoken->ttype == LPT_MUL|| lp_forwardtoken->ttype == LPT_LEFT_BRACKET))
     {
-        lp_lex_token *type = root_t;
-        while (1) {
-            int ptr_depth = 0;
-            lp_lex_token *left = lp_nexttoken;
-            while (left->ttype == LPT_MUL) {
-                ptr_depth++;
-                left = lp_nexttoken;
-            }
-            
-            lp_parser_match(left, LPT_WORDS);
-            lp_lex_token *nxt = lp_nexttoken;
-            lp_parse_eval_value right;
-            lp_parse_symbol * sym;
-            if(nxt->ttype == LPT_EQ)
-            {
-                lp_nexttoken;
-                lp_parser_expression(ctx,&right, LPP_ASSIGN,1);
-                lp_parser_gen_loadcode(ctx, &right);
-                if(!right.is_var)
-                {
-                    if(ptr_depth)
-                    {
-                        
-                        //LP_ERR("Cannot assign a constant to a pointer!", *left);
-                    }
-                    sym = lp_parser_add_variable(ctx,left,type,0);
-                    // Type Check
-                    //
-                    sym->array_length = right.array_length;
-                }else {
-                    sym = lp_parser_add_variable(ctx,left,0,right.type);
-                    //sym->type = right->sym->type;
-                    sym->ptr_depth = ptr_depth;
-                    sym->array_length = right.array_length;
-                    if (sym->ptr_depth && !right.ptr_depth) {
-                        //lp_parser_push_op(ctx, LOP_GETPTR);
-                        LP_ERR("Fail to assign a variable to a pointer!",*left);
-                    }
-                    
-                }
-            }else if(nxt->ttype == LPT_SEMICOLON)
-            {
-                sym = lp_parser_add_variable(ctx, left, type,0);
-            }
-            sym->ptr_depth = ptr_depth;
-            LP_ASSERT(left,lpprintf(LPDINFO"[Parse]: Expect a expression after '='"))
-            //lpdebug("match :type: %s left:%s; right:",type->v_str?:"auto", left->v_str);
-            lp_parser_print_val(&right);
-            if(lp_forwardtoken->ttype == LPT_COMMA)
-            {
-                lp_nexttoken;
-            }else {
-                break;
-            }
-        }
+        lp_parser_def_statment(ctx, 1);
 
     }
     else if(root_t->ttype == LPT_KW_WHILE)
@@ -726,6 +746,15 @@ LP_Err lp_parser_statment(lp_compiler *ctx)
         //lp_nexttoken;
 
     }
+    else if(root_t->ttype == LPT_KW_STRUCT)
+    {
+        lp_lex_token *name = lp_nexttoken;
+        lp_parser_match(name, LPT_STRING);
+        lp_parser_match(lp_nexttoken, LPT_LEFT_CURLY);
+        
+        lp_parser_match(lp_nexttoken, LPT_RIGHT_CURLY);
+        
+    }
     else {
         lp_parse_eval_value left;
         if(lp_parser_expression(ctx, &left, LPP_ASSIGN,0)!=LPP_ASSIGN)
@@ -749,7 +778,9 @@ LP_Err lp_compiler_codegen(lp_compiler *ctx)
     LP_RESET_FIELD(ctx);
     while(1)
     {
+        if(lp_forwardtoken->ttype == LPT_KW_EXIT)
+            break;
         lp_parser_statment(ctx);
     }
-    
+    return 0;
 }

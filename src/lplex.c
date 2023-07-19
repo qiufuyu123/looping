@@ -87,6 +87,8 @@ lptoken lp_analyze_keyword(char *code)
         return LPT_KW_LET;
     else if(!strcmp(code,"struct"))
         return LPT_KW_STRUCT;
+    else if(!strcmp(code, "exit"))
+        return LPT_KW_EXIT;
     return LPT_NULL;
 }
 lptoken lp_analyze_split(char c)

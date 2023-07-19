@@ -102,6 +102,14 @@ LP_Err lp_vm_continue(lp_vm_ctx *ctx)
             sprintf(debugbuf, "LOADs(%d) 0x%x\n",notabs,val1);
             debugasm;
             break;
+        case LOP_SPACE:
+            val1 = lp_vm_nextop_value(ctx); // get offset of stack
+            lpdebug("[VM] Op: Space, num:%dbytes;\n",val1*4);
+            lp_vm_stack_lea(ctx, val1*4);
+            lp_vm_dump_stack(ctx);
+            sprintf(debugbuf, "Space %d\n",val1);
+            debugasm;
+            break;
         case LOP_POP_TO:
             val1 = lp_vm_nextop_value(ctx); // get offset of stack
             lpdebug("[VM] Op: POP to, offset:0x%x;\n",val1);

@@ -1,8 +1,17 @@
 #include"lpcompiler.h"
 #include"lperr.h"
 #include "lptypes.h"
+#include <stdint.h>
+#include <stdio.h>
 #include<string.h>
 #include<stdlib.h>
+
+typedef struct
+{
+    uint32_t magic;
+    uint32_t ver;
+    uint32_t sz;
+}lp_bin_header_t;
 void lp_compiler_init(lp_compiler *ctx,lp_vm_ctx* vmctx, char *codebuf, lpsize bufsize)
 {
     lpnull(ctx&&vmctx&&codebuf&&bufsize);
@@ -38,6 +47,18 @@ LP_Err lp_compiler_do(lp_compiler *ctx)
     if(e != LP_OK)
         lp_compiler_exit(e);
     lpprintf(LPDINFO "===== Looping Comilier Finish! =====" LPEOL);
-    //lpprintf(LPDINFO "total:%db, ")
+    uint32_t sz = ctx->vm->opcodes.codes_end - ctx->vm->opcodes.codes;
+    lpprintf(LPDINFO "total:%db(text) " LPEOL,sz);
+    FILE *fp = fopen("output.bin", "w");
+    if(!fp)
+    {
+        lpprintf(LPDERRO "Fail to open output file!" LPEOL);
+        lp_compiler_exit(-1);
+    }
+    lp_bin_header_t h={.magic = 0xc14ff41c,.ver=1,.sz=sz};
+    fwrite(&h, 1, sizeof(lp_bin_header_t), fp);
+    fwrite(ctx->vm->opcodes.codes, sz, 1, fp);
+    fclose(fp);
+    lpprintf(LPDINFO "Write all binary [DONE]" LPEOL);
     return e;
 }

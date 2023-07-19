@@ -19,6 +19,7 @@ enum
     LPT_KW_WHILE,
     LPT_KW_FOR,
     LPT_KW_FN,
+    LPT_KW_EXIT,
     LPT_KW_RET,
     LPT_KW_LET,
     LPT_KW_STRING,
